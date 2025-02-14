@@ -148,7 +148,6 @@ class Handler(LineReceiver):
 		self.transport.abortConnection()
 		self.cleanup_timer = None
 
-
 class User(object):
 	user_id = 0
 
@@ -235,7 +234,6 @@ class ServerState(object):
 			channel = Channel(name, self)
 			self.channels[name] = channel
 		return channel
-
 
 class Options(usage.Options):
 	optParameters = [
