@@ -1,0 +1,9 @@
+line-length = 110
+target-version = "py311"
+
+[lint]
+fixable = ["ALL"]
+
+[format]
+indent-style = "tab"
+line-ending = "lf"
