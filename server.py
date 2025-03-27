@@ -18,10 +18,10 @@ from twisted.python import log, usage
 
 logger = getLogger("remote-server")
 
-PING_INTERVAL = 300
-INITIAL_TIMEOUT = 30
+PING_INTERVAL: int = 300
+INITIAL_TIMEOUT: int = 30
 # Expiration time for generated keys, in seconds
-GENERATED_KEY_EXPIRATION_TIME = 60 * 60 * 24  # One day
+GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
 
 
 class Channel(object):
@@ -148,7 +148,8 @@ class Handler(LineReceiver):
 		self.transport.abortConnection()
 		self.cleanup_timer = None
 
-class User(object):
+
+class User:
 	user_id = 0
 
 	def __init__(self, protocol):
@@ -215,7 +216,7 @@ class RemoteServerFactory(Factory):
 			channel.ping_clients()
 
 
-class ServerState(object):
+class ServerState:
 	def __init__(self):
 		self.channels = {}
 		# Set of already generated keys
