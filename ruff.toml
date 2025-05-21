@@ -1,0 +1,18 @@
+line-length = 110
+target-version = "py311"
+show-fixes = true
+
+[lint]
+fixable = ["ALL"]
+extend-select = [
+  "UP",  # pyupgrade
+]
+
+[format]
+indent-style = "tab"
+line-ending = "lf"
+
+
+[lint.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = false
