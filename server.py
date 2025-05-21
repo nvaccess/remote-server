@@ -1,4 +1,3 @@
-import io
 import json
 import os
 import random
@@ -265,7 +264,7 @@ def main():  # pragma: no cover
 	)
 	state = ServerState()
 	if os.path.exists(config["motd"]):
-		with io.open(config["motd"], encoding="utf-8") as fp:
+		with open(config["motd"], encoding="utf-8") as fp:
 			state.motd = fp.read().strip()
 	else:
 		state.motd = None
