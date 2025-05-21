@@ -24,7 +24,7 @@ INITIAL_TIMEOUT: int = 30
 GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
 
 
-class Channel(object):
+class Channel:
 	def __init__(self, key, server_state=None):
 		self.clients = OrderedDict()
 		self.key = key
