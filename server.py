@@ -10,13 +10,13 @@ from logging import getLogger
 from OpenSSL import crypto
 from twisted.internet import reactor, ssl
 from twisted.internet.interfaces import ITCPTransport
-from twisted.internet.protocol import Factory, defer
+from twisted.internet.protocol import Factory, defer, connectionDone
 from twisted.internet.task import LoopingCall
 from twisted.protocols.basic import LineReceiver
 from twisted.python import log, usage
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
-from typing import Any
+from typing import Any, TypedDict
 
 logger = getLogger("remote-server")
 
@@ -24,6 +24,12 @@ PING_INTERVAL: int = 300
 INITIAL_TIMEOUT: int = 30
 # Expiration time for generated keys, in seconds
 GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
+
+
+class UserDict(TypedDict):
+	"""Typed dictionary representing a user."""
+	id: int
+	connection_type: str | None
 
 
 class Channel:
@@ -92,7 +98,7 @@ class Handler(LineReceiver):
 		self.cleanup_timer = reactor.callLater(INITIAL_TIMEOUT, self.cleanup)
 		self.user.send_motd()
 
-	def connectionLost(self, reason: Failure) -> None:
+	def connectionLost(self, reason: Failure = connectionDone) -> None:
 		logger.info(
 			"Connection %d lost, bytes sent: %d received: %d",
 			self.connection_id,
@@ -128,16 +134,19 @@ class Handler(LineReceiver):
 		getattr(self, "do_" + parsed["type"])(parsed)
 
 	def do_join(self, obj: dict[str, str]) -> None:
-		if "channel" not in obj or not obj["channel"]:
+		if "channel" not in obj or not obj["channel"] or "connection_type" not in obj or not obj["connection_type"]:
 			self.send(type="error", error="invalid_parameters")
 			return
-		self.user.join(obj["channel"], connection_type=obj.get("connection_type"))
+		self.user.join(obj["channel"], connection_type=obj["connection_type"])
 		self.cleanup_timer.cancel()
 
 	def do_protocol_version(self, obj: dict[str, int | str]) -> None:
 		if "version" not in obj:
 			return
-		self.protocol_version = obj["version"]
+		try:
+			self.protocol_version = int(obj["version"])
+		except ValueError:
+			return
 
 	def do_generate_key(self, obj: dict[str, str]) -> None:
 		self.user.generate_key()
@@ -166,10 +175,10 @@ class User:
 		self.user_id = User.user_id + 1
 		User.user_id += 1
 
-	def as_dict(self) -> dict[str, int | str]:
-		return dict(id=self.user_id, connection_type=self.connection_type)
+	def as_dict(self) -> UserDict:
+		return UserDict(id=self.user_id, connection_type=self.connection_type)
 
-	def generate_key(self) -> str:
+	def generate_key(self) -> str | None:
 		ip = self.protocol.transport.getPeer().host
 		if ip in self.server_state.generated_ips and time.time() - self.server_state.generated_ips[ip] < 1:
 			self.send(type="error", message="too many keys")
