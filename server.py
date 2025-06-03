@@ -195,7 +195,7 @@ class Handler(LineReceiver):
 		self.user.generate_key()
 
 	def send(self, origin: int | None = None, **msg) -> None:
-		"""Send a message
+		"""Send a message.
 
 		:param origin: Originating user of the message, defaults to None
 		"""
@@ -213,9 +213,15 @@ class Handler(LineReceiver):
 
 
 class User:
+	"""A single connected user."""
+
 	user_id = 0
 
 	def __init__(self, protocol: Handler) -> None:
+		"""Initializer.
+
+		:param protocol: The Handler through which this user connected.
+		"""
 		self.protocol = protocol
 		self.channel = None
 		self.server_state = self.protocol.factory.server_state
@@ -224,9 +230,16 @@ class User:
 		User.user_id += 1
 
 	def as_dict(self) -> UserDict:
+		"""Get a representation of this user suitable for sending over the wire."""
 		return UserDict(id=self.user_id, connection_type=self.connection_type)
 
 	def generate_key(self) -> str | None:
+		"""Generate a key for the user.
+
+		:return: A channel key, or None if too many keys have been requested.
+
+		:postcondition: The key will be temporarily persisted so that future key generation requests don't result in duplicate keys.
+		"""
 		ip = self.protocol.transport.getPeer().host
 		if ip in self.server_state.generated_ips and time.time() - self.server_state.generated_ips[ip] < 1:
 			self.send(type="error", message="too many keys")
@@ -243,12 +256,18 @@ class User:
 		return key
 
 	def connection_lost(self) -> None:
+		"""Remove this user when they disconnect."""
 		if (
 			self.channel is not None
 		):  # pragma: no branch - we don't care about the alternative, as it's a no-op
 			self.channel.remove_connection(self)
 
 	def join(self, channel: str, connection_type: str) -> None:
+		"""Add this user to a channel.
+
+		:param channel: Key of the channel to join. If no channel with this key exists, a new channel will be created.
+		:param connection_type: Leader ("master") or follower ("slave").
+		"""
 		if self.channel:
 			self.send(type="error", error="already_joined")
 			return
@@ -258,14 +277,17 @@ class User:
 
 	# TODO: Work out if this is ever called.
 	def do_generate_key(self):  # pragma: no cover
+		"""Not sure what calls this?"""
 		key = self.generate_key()
 		if key:
 			self.send(type="generate_key", key=key)
 
 	def send(self, **obj) -> None:
+		"""Send a message to this user."""
 		self.protocol.send(**obj)
 
 	def send_motd(self) -> None:
+		"""Send the message of the day to this user."""
 		if self.server_state.motd is not None:
 			self.send(type="motd", motd=self.server_state.motd)
 
