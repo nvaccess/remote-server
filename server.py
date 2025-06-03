@@ -103,6 +103,8 @@ class Channel:
 
 
 class Handler(LineReceiver):
+	"""Handle sending and receiving messages."""
+
 	delimiter = b"\n"
 	connection_id = 0
 	MAX_LENGTH = 20 * 1048576
@@ -113,6 +115,7 @@ class Handler(LineReceiver):
 		self.protocol_version = 1
 
 	def connectionMade(self) -> None:
+		"""Called when a user first connects."""
 		logger.info("Connection %d from %s", self.connection_id, self.transport.getPeer())
 		# We use a non-tcp transport for unit testing,
 		# which doesn't support setTcpNoDelay.
@@ -125,6 +128,7 @@ class Handler(LineReceiver):
 		self.user.send_motd()
 
 	def connectionLost(self, reason: Failure = connectionDone) -> None:
+		"""Called when the connection is dropped."""
 		logger.info(
 			"Connection %d lost, bytes sent: %d received: %d",
 			self.connection_id,
@@ -138,6 +142,10 @@ class Handler(LineReceiver):
 			self.cleanup_timer.cancel()
 
 	def lineReceived(self, line: bytes) -> None:
+		"""Called when a new line (a command) has been received.
+
+		:param line: The incoming line.
+		"""
 		self.bytes_received += len(line)
 		try:
 			parsed = json.loads(line)
@@ -160,6 +168,7 @@ class Handler(LineReceiver):
 		getattr(self, "do_" + parsed["type"])(parsed)
 
 	def do_join(self, obj: dict[str, str]) -> None:
+		"""Called when receiving a "join" message."""
 		if (
 			"channel" not in obj
 			or not obj["channel"]
@@ -172,6 +181,8 @@ class Handler(LineReceiver):
 		self.cleanup_timer.cancel()
 
 	def do_protocol_version(self, obj: dict[str, int | str]) -> None:
+		"""Called when a "protocol_version" message is received."""
+		# TODO: Why don't we send an error message back?
 		if "version" not in obj:
 			return
 		try:
@@ -180,9 +191,14 @@ class Handler(LineReceiver):
 			return
 
 	def do_generate_key(self, obj: dict[str, str]) -> None:
+		"""Called when a "generate_key" message is received."""
 		self.user.generate_key()
 
 	def send(self, origin: int | None = None, **msg) -> None:
+		"""Send a message
+
+		:param origin: Originating user of the message, defaults to None
+		"""
 		if self.protocol_version > 1 and origin:
 			msg["origin"] = origin
 		obj = json.dumps(msg).encode("ascii")
@@ -190,6 +206,7 @@ class Handler(LineReceiver):
 		self.sendLine(obj)
 
 	def cleanup(self):
+		"""Clean up this connection."""
 		logger.info("Connection %d timed out", self.connection_id)
 		self.transport.abortConnection()
 		self.cleanup_timer = None
