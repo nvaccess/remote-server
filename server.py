@@ -275,11 +275,11 @@ def main() -> Deferred:  # pragma: no cover
 			state.motd = fp.read().strip()
 	else:
 		state.motd = None
-	f = RemoteServerFactory(state)
-	l = LoopingCall(f.ping_connected_clients)
-	l.start(PING_INTERVAL)
-	f.protocol = Handler
-	reactor.listenSSL(int(config["port"]), f, context_factory, interface=config["network-interface"])
+	factory = RemoteServerFactory(state)
+	looper = LoopingCall(factory.ping_connected_clients)
+	looper.start(PING_INTERVAL)
+	factory.protocol = Handler
+	reactor.listenSSL(int(config["port"]), factory, context_factory, interface=config["network-interface"])
 	reactor.run()
 	return defer.Deferred()
 
