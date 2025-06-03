@@ -27,7 +27,7 @@ GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
 
 
 class Channel:
-	def __init__(self, key: str, server_state: "ServerState | None"=None) -> None:
+	def __init__(self, key: str, server_state: "ServerState | None" = None) -> None:
 		self.clients = OrderedDict()
 		self.key = key
 		self.server_state = server_state
@@ -61,7 +61,9 @@ class Channel:
 	def ping_clients(self) -> None:
 		self.send_to_clients({"type": "ping"})
 
-	def send_to_clients(self, obj: dict[str, Any], exclude: "User | None"=None, origin: int | None=None) -> None:
+	def send_to_clients(
+		self, obj: dict[str, Any], exclude: "User | None" = None, origin: int | None = None
+	) -> None:
 		for client in self.clients.values():
 			if client is exclude:
 				continue
@@ -79,7 +81,7 @@ class Handler(LineReceiver):
 		self.protocol_version = 1
 
 	def connectionMade(self) -> None:
-		logger.info("Connection %d from %s" % (self.connection_id, self.transport.getPeer()))
+		logger.info("Connection %d from %s", self.connection_id, self.transport.getPeer())
 		# We use a non-tcp transport for unit testing,
 		# which doesn't support setTcpNoDelay.
 		if isinstance(self.transport, ITCPTransport):  # pragma: no cover
@@ -92,8 +94,10 @@ class Handler(LineReceiver):
 
 	def connectionLost(self, reason: Failure) -> None:
 		logger.info(
-			"Connection %d lost, bytes sent: %d received: %d"
-			% (self.connection_id, self.bytes_sent, self.bytes_received),
+			"Connection %d lost, bytes sent: %d received: %d",
+			self.connection_id,
+			self.bytes_sent,
+			self.bytes_received,
 		)
 		self.user.connection_lost()
 		if (
@@ -108,18 +112,18 @@ class Handler(LineReceiver):
 			if not isinstance(parsed, dict):
 				raise ValueError
 		except ValueError:
-			logger.warn("Unable to parse %r" % line)
+			logger.warn("Unable to parse %r", line)
 			self.transport.loseConnection()
 			return
 		if "type" not in parsed:
-			logger.warning("Invalid object received: %r" % parsed)
+			logger.warning("Invalid object received: %r", parsed)
 			return
 		parsed.pop("origin", None)  # Remove an existing origin, we know where the message comes from.
 		if self.user.channel is not None:
 			self.user.channel.send_to_clients(parsed, exclude=self.user, origin=self.user.user_id)
 			return
 		elif not hasattr(self, "do_" + parsed["type"]):
-			logger.warning("No function for type %s" % parsed["type"])
+			logger.warning("No function for type %s", parsed["type"])
 			return
 		getattr(self, "do_" + parsed["type"])(parsed)
 
@@ -138,7 +142,7 @@ class Handler(LineReceiver):
 	def do_generate_key(self, obj: dict[str, str]) -> None:
 		self.user.generate_key()
 
-	def send(self, origin: int | None=None, **msg) -> None:
+	def send(self, origin: int | None = None, **msg) -> None:
 		if self.protocol_version > 1 and origin:
 			msg["origin"] = origin
 		obj = json.dumps(msg).encode("ascii")
@@ -146,7 +150,7 @@ class Handler(LineReceiver):
 		self.sendLine(obj)
 
 	def cleanup(self):
-		logger.info("Connection %d timed out" % self.connection_id)
+		logger.info("Connection %d timed out", self.connection_id)
 		self.transport.abortConnection()
 		self.cleanup_timer = None
 
