@@ -353,12 +353,15 @@ class Options(usage.Options):
 
 # Exclude from coverage as it's hard to unit test.
 def main() -> Deferred:  # pragma: no cover
+	# Read options from CLI.
 	config = Options()
 	config.parseOptions()
+	# Open SSL keys.
 	privkey = open(config["privkey"]).read()
 	certData = open(config["certificate"], "rb").read()
 	chain = open(config["chain"], "rb").read()
 	log.startLogging(sys.stdout)
+	# Initialise encryption
 	privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, privkey)
 	certificate = crypto.load_certificate(crypto.FILETYPE_PEM, certData)
 	chain = crypto.load_certificate(crypto.FILETYPE_PEM, chain)
@@ -367,16 +370,19 @@ def main() -> Deferred:  # pragma: no cover
 		certificate=certificate,
 		extraCertChain=[chain],
 	)
+	# Initialise the server state machine
 	state = ServerState()
 	if os.path.exists(config["motd"]):
 		with open(config["motd"], encoding="utf-8") as fp:
 			state.motd = fp.read().strip()
 	else:
 		state.motd = None
+	# Set up the machinery of the server.
 	factory = RemoteServerFactory(state)
 	looper = LoopingCall(factory.ping_connected_clients)
 	looper.start(PING_INTERVAL)
 	factory.protocol = Handler
+	# Start running the server.
 	reactor.listenSSL(int(config["port"]), factory, context_factory, interface=config["network-interface"])
 	reactor.run()
 	return defer.Deferred()
