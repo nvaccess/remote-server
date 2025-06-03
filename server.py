@@ -28,17 +28,29 @@ GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
 
 class UserDict(TypedDict):
 	"""Typed dictionary representing a user."""
+
 	id: int
 	connection_type: str | None
 
 
 class Channel:
+	"""Collection of connected users in the one "session"."""
+
 	def __init__(self, key: str, server_state: "ServerState | None" = None) -> None:
-		self.clients = OrderedDict()
+		"""_summary_
+
+		:param key: Unique identifier of this channel.
+		:param server_state: Server state, defaults to None
+		"""
+		self.clients: OrderedDict[int, User] = OrderedDict()
 		self.key = key
 		self.server_state = server_state
 
 	def add_client(self, client: "User") -> None:
+		"""Joined when a new user wants to join the channel.
+
+		:param client: The new channel member.
+		"""
 		if client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
 			ids = [c.user_id for c in self.clients.values()]
 			msg = dict(type="channel_joined", channel=self.key, user_ids=ids, origin=client.user_id)
@@ -54,6 +66,10 @@ class Channel:
 		self.clients[client.user_id] = client
 
 	def remove_connection(self, con: "User") -> None:
+		"""Called when a user leaves the channel.
+
+		:param con: The leaving channel member.
+		"""
 		if con.user_id in self.clients:
 			del self.clients[con.user_id]
 		for client in self.clients.values():
@@ -65,11 +81,21 @@ class Channel:
 			self.server_state.remove_channel(self.key)
 
 	def ping_clients(self) -> None:
+		"""Ping clients to ensure they're still connected."""
 		self.send_to_clients({"type": "ping"})
 
 	def send_to_clients(
-		self, obj: dict[str, Any], exclude: "User | None" = None, origin: int | None = None
+		self,
+		obj: dict[str, Any],
+		exclude: "User | None" = None,
+		origin: int | None = None,
 	) -> None:
+		"""Broadcast a message to all users in this channel.
+
+		:param obj: Message to send.
+		:param exclude: User to exclude from the broadcast, defaults to None
+		:param origin: Originating user, defaults to None
+		"""
 		for client in self.clients.values():
 			if client is exclude:
 				continue
@@ -134,7 +160,12 @@ class Handler(LineReceiver):
 		getattr(self, "do_" + parsed["type"])(parsed)
 
 	def do_join(self, obj: dict[str, str]) -> None:
-		if "channel" not in obj or not obj["channel"] or "connection_type" not in obj or not obj["connection_type"]:
+		if (
+			"channel" not in obj
+			or not obj["channel"]
+			or "connection_type" not in obj
+			or not obj["connection_type"]
+		):
 			self.send(type="error", error="invalid_parameters")
 			return
 		self.user.join(obj["channel"], connection_type=obj["connection_type"])
