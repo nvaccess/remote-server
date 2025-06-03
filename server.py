@@ -16,6 +16,7 @@ from twisted.protocols.basic import LineReceiver
 from twisted.python import log, usage
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
+from twisted.internet.interfaces import IAddress
 from typing import Any, TypedDict
 
 logger = getLogger("remote-server")
@@ -293,27 +294,45 @@ class User:
 
 
 class RemoteServerFactory(Factory):
+	"""Factory to add common functionality to connections."""
+
 	def __init__(self, server_state: "ServerState") -> None:
+		"""Initializer.
+
+		:param server_state: Status tracking object.
+		"""
 		self.server_state = server_state
 
 	def ping_connected_clients(self) -> None:
+		"""Ping all users in all channels to determine if they're still connected."""
 		for channel in self.server_state.channels.values():
 			channel.ping_clients()
 
 
 class ServerState:
+	"""Object that tracks the status of the server."""
+
 	def __init__(self) -> None:
-		self.channels = {}
+		self.channels: dict[str, Channel] = {}
 		# Set of already generated keys
-		self.generated_keys = set()
-		# Dictionary of ips to generated time for people who have generated keys.
-		self.generated_ips = {}
+		self.generated_keys: set[str] = set()
+		# Mapping of IPs to generated time for people who have generated keys.
+		self.generated_ips: dict[IAddress, float] = {}
 		self.motd: str | None = None
 
 	def remove_channel(self, channel: str) -> None:
+		"""Close a channel.
+
+		:param channel: Key of the channel to remove.
+		"""
 		del self.channels[channel]
 
 	def find_or_create_channel(self, name: str) -> Channel:
+		"""Find an existing channel, or create one if one doesn't already exist.
+
+		:param name: Key of the channel to find/create.
+		:return: The found or created channel.
+		"""
 		if name in self.channels:
 			channel = self.channels[name]
 		else:
