@@ -14,6 +14,9 @@ from twisted.internet.protocol import Factory, defer
 from twisted.internet.task import LoopingCall
 from twisted.protocols.basic import LineReceiver
 from twisted.python import log, usage
+from twisted.internet.defer import Deferred
+from twisted.python.failure import Failure
+from typing import Any
 
 logger = getLogger("remote-server")
 
@@ -24,12 +27,12 @@ GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
 
 
 class Channel:
-	def __init__(self, key, server_state=None):
+	def __init__(self, key: str, server_state: "ServerState | None"=None) -> None:
 		self.clients = OrderedDict()
 		self.key = key
 		self.server_state = server_state
 
-	def add_client(self, client):
+	def add_client(self, client: "User") -> None:
 		if client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
 			ids = [c.user_id for c in self.clients.values()]
 			msg = dict(type="channel_joined", channel=self.key, user_ids=ids, origin=client.user_id)
@@ -44,7 +47,7 @@ class Channel:
 				existing_client.send(type="client_joined", client=client.as_dict())
 		self.clients[client.user_id] = client
 
-	def remove_connection(self, con):
+	def remove_connection(self, con: "User") -> None:
 		if con.user_id in self.clients:
 			del self.clients[con.user_id]
 		for client in self.clients.values():
@@ -55,10 +58,10 @@ class Channel:
 		if not self.clients:
 			self.server_state.remove_channel(self.key)
 
-	def ping_clients(self):
+	def ping_clients(self) -> None:
 		self.send_to_clients({"type": "ping"})
 
-	def send_to_clients(self, obj, exclude=None, origin=None):
+	def send_to_clients(self, obj: dict[str, Any], exclude: "User | None"=None, origin: int | None=None) -> None:
 		for client in self.clients.values():
 			if client is exclude:
 				continue
@@ -70,12 +73,12 @@ class Handler(LineReceiver):
 	connection_id = 0
 	MAX_LENGTH = 20 * 1048576
 
-	def __init__(self):
+	def __init__(self) -> None:
 		self.connection_id = Handler.connection_id + 1
 		Handler.connection_id += 1
 		self.protocol_version = 1
 
-	def connectionMade(self):
+	def connectionMade(self) -> None:
 		logger.info("Connection %d from %s" % (self.connection_id, self.transport.getPeer()))
 		# We use a non-tcp transport for unit testing,
 		# which doesn't support setTcpNoDelay.
@@ -87,7 +90,7 @@ class Handler(LineReceiver):
 		self.cleanup_timer = reactor.callLater(INITIAL_TIMEOUT, self.cleanup)
 		self.user.send_motd()
 
-	def connectionLost(self, reason):
+	def connectionLost(self, reason: Failure) -> None:
 		logger.info(
 			"Connection %d lost, bytes sent: %d received: %d"
 			% (self.connection_id, self.bytes_sent, self.bytes_received),
@@ -98,7 +101,7 @@ class Handler(LineReceiver):
 		):  # pragma: no cover - not sure how to trigger this
 			self.cleanup_timer.cancel()
 
-	def lineReceived(self, line):
+	def lineReceived(self, line: bytes) -> None:
 		self.bytes_received += len(line)
 		try:
 			parsed = json.loads(line)
@@ -120,22 +123,22 @@ class Handler(LineReceiver):
 			return
 		getattr(self, "do_" + parsed["type"])(parsed)
 
-	def do_join(self, obj):
+	def do_join(self, obj: dict[str, str]) -> None:
 		if "channel" not in obj or not obj["channel"]:
 			self.send(type="error", error="invalid_parameters")
 			return
 		self.user.join(obj["channel"], connection_type=obj.get("connection_type"))
 		self.cleanup_timer.cancel()
 
-	def do_protocol_version(self, obj):
+	def do_protocol_version(self, obj: dict[str, int | str]) -> None:
 		if "version" not in obj:
 			return
 		self.protocol_version = obj["version"]
 
-	def do_generate_key(self, obj):
+	def do_generate_key(self, obj: dict[str, str]) -> None:
 		self.user.generate_key()
 
-	def send(self, origin=None, **msg):
+	def send(self, origin: int | None=None, **msg) -> None:
 		if self.protocol_version > 1 and origin:
 			msg["origin"] = origin
 		obj = json.dumps(msg).encode("ascii")
@@ -151,7 +154,7 @@ class Handler(LineReceiver):
 class User:
 	user_id = 0
 
-	def __init__(self, protocol):
+	def __init__(self, protocol: Handler) -> None:
 		self.protocol = protocol
 		self.channel = None
 		self.server_state = self.protocol.factory.server_state
@@ -159,10 +162,10 @@ class User:
 		self.user_id = User.user_id + 1
 		User.user_id += 1
 
-	def as_dict(self):
+	def as_dict(self) -> dict[str, int | str]:
 		return dict(id=self.user_id, connection_type=self.connection_type)
 
-	def generate_key(self):
+	def generate_key(self) -> str:
 		ip = self.protocol.transport.getPeer().host
 		if ip in self.server_state.generated_ips and time.time() - self.server_state.generated_ips[ip] < 1:
 			self.send(type="error", message="too many keys")
@@ -178,13 +181,13 @@ class User:
 			self.send(type="generate_key", key=key)
 		return key
 
-	def connection_lost(self):
+	def connection_lost(self) -> None:
 		if (
 			self.channel is not None
 		):  # pragma: no branch - we don't care about the alternative, as it's a no-op
 			self.channel.remove_connection(self)
 
-	def join(self, channel, connection_type):
+	def join(self, channel: str, connection_type: str) -> None:
 		if self.channel:
 			self.send(type="error", error="already_joined")
 			return
@@ -198,25 +201,25 @@ class User:
 		if key:
 			self.send(type="generate_key", key=key)
 
-	def send(self, **obj):
+	def send(self, **obj) -> None:
 		self.protocol.send(**obj)
 
-	def send_motd(self):
+	def send_motd(self) -> None:
 		if self.server_state.motd is not None:
 			self.send(type="motd", motd=self.server_state.motd)
 
 
 class RemoteServerFactory(Factory):
-	def __init__(self, server_state):
+	def __init__(self, server_state: "ServerState") -> None:
 		self.server_state = server_state
 
-	def ping_connected_clients(self):
+	def ping_connected_clients(self) -> None:
 		for channel in self.server_state.channels.values():
 			channel.ping_clients()
 
 
 class ServerState:
-	def __init__(self):
+	def __init__(self) -> None:
 		self.channels = {}
 		# Set of already generated keys
 		self.generated_keys = set()
@@ -224,10 +227,10 @@ class ServerState:
 		self.generated_ips = {}
 		self.motd: str | None = None
 
-	def remove_channel(self, channel):
+	def remove_channel(self, channel: str) -> None:
 		del self.channels[channel]
 
-	def find_or_create_channel(self, name):
+	def find_or_create_channel(self, name: str) -> Channel:
 		if name in self.channels:
 			channel = self.channels[name]
 		else:
@@ -247,7 +250,7 @@ class Options(usage.Options):
 
 
 # Exclude from coverage as it's hard to unit test.
-def main():  # pragma: no cover
+def main() -> Deferred:  # pragma: no cover
 	config = Options()
 	config.parseOptions()
 	privkey = open(config["privkey"]).read()
