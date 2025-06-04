@@ -84,38 +84,3 @@ fail_under = 100
 exclude_also = [
     'if __name__ == .__main__.:',
 ]
-
-[tool.pyright]
-venvPath = ".venv"
-venv = "."
-pythonPlatform = "Linux"
-typeCheckingMode = "strict"
-
-include = [
-	"**/*.py",
-]
-
-exclude = [
-	".git",
-	"__pycache__",
-	".venv",
-    "setup.py",
-	# When excluding concrete paths relative to a directory,
-	# not matching multiple folders by name e.g. `__pycache__`,
-	# paths are relative to the configuration file.
-]
-
-# General config
-analyzeUnannotatedFunctions = false
-deprecateTypingAliases = true
-
-reportMissingTypeArgument=false
-reportUnknownVariableType=false
-reportAttributeAccessIssue=false
-reportUnknownMemberType=false
-reportUnknownParameterType=false
-reportUnknownArgumentType=false
-reportMissingParameterType=false
-reportUnknownLambdaType=false
-reportUnusedVariable=false
-reportOptionalMemberAccess=false

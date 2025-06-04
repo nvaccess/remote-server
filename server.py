@@ -17,7 +17,7 @@ from twisted.python import log, usage
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
 from twisted.internet.interfaces import IAddress
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 logger = getLogger("remote-server")
 
@@ -32,6 +32,12 @@ class UserDict(TypedDict):
 
 	id: int
 	connection_type: str | None
+
+
+class Message(TypedDict):
+	"""Type hints for protocol messages."""
+
+	type: str
 
 
 class Channel:
@@ -156,6 +162,7 @@ class Handler(LineReceiver):
 			logger.warning("Unable to parse %r", line)
 			self.transport.loseConnection()
 			return
+		cast(Message, parsed)
 		if "type" not in parsed:
 			logger.warning("Invalid object received: %r", parsed)
 			return
@@ -206,7 +213,7 @@ class Handler(LineReceiver):
 		self.bytes_sent += len(obj)
 		self.sendLine(obj)
 
-	def cleanup(self):
+	def cleanup(self) -> None:
 		"""Clean up this connection."""
 		logger.info("Connection %d timed out", self.connection_id)
 		self.transport.abortConnection()
@@ -277,7 +284,7 @@ class User:
 		self.channel.add_client(self)
 
 	# TODO: Work out if this is ever called.
-	def do_generate_key(self):  # pragma: no cover
+	def do_generate_key(self) -> None:  # pragma: no cover
 		"""Not sure what calls this?"""
 		key = self.generate_key()
 		if key:
