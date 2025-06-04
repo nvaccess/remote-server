@@ -16,7 +16,6 @@ from twisted.protocols.basic import LineReceiver
 from twisted.python import log, usage
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
-from twisted.internet.interfaces import IAddress
 from typing import Any, TypedDict, cast
 
 logger = getLogger("remote-server")
@@ -162,7 +161,7 @@ class Handler(LineReceiver):
 			logger.warning("Unable to parse %r", line)
 			self.transport.loseConnection()
 			return
-		cast(Message, parsed)
+		cast(dict[str, Any], parsed)
 		if "type" not in parsed:
 			logger.warning("Invalid object received: %r", parsed)
 			return
@@ -202,7 +201,7 @@ class Handler(LineReceiver):
 		"""Called when a "generate_key" message is received."""
 		self.user.generate_key()
 
-	def send(self, origin: int | None = None, **msg) -> None:
+	def send(self, origin: int | None = None, **msg: Any) -> None:
 		"""Send a message.
 
 		:param origin: Originating user of the message, defaults to None
@@ -231,8 +230,8 @@ class User:
 		:param protocol: The Handler through which this user connected.
 		"""
 		self.protocol = protocol
-		self.channel = None
-		self.server_state = self.protocol.factory.server_state
+		self.channel: Channel | None = None
+		self.server_state: ServerState = self.protocol.factory.server_state
 		self.connection_type = None
 		self.user_id = User.user_id + 1
 		User.user_id += 1
@@ -248,14 +247,14 @@ class User:
 
 		:postcondition: The key will be temporarily persisted so that future key generation requests don't result in duplicate keys.
 		"""
-		ip = self.protocol.transport.getPeer().host
+		ip: str = self.protocol.transport.getPeer().host  # type: ignore
 		if ip in self.server_state.generated_ips and time.time() - self.server_state.generated_ips[ip] < 1:
 			self.send(type="error", message="too many keys")
 			self.protocol.transport.loseConnection()
 			return
-		key = "".join([random.choice(string.digits) for i in range(7)])
+		key = "".join([random.choice(string.digits) for _ in range(7)])
 		while key in self.server_state.generated_keys or key in self.server_state.channels.keys():
-			key = "".join([random.choice(string.digits) for i in range(7)])
+			key = "".join([random.choice(string.digits) for _ in range(7)])
 		self.server_state.generated_keys.add(key)
 		self.server_state.generated_ips[ip] = time.time()
 		reactor.callLater(GENERATED_KEY_EXPIRATION_TIME, lambda: self.server_state.generated_keys.remove(key))
@@ -290,7 +289,7 @@ class User:
 		if key:
 			self.send(type="generate_key", key=key)
 
-	def send(self, **obj) -> None:
+	def send(self, **obj: Any) -> None:
 		"""Send a message to this user."""
 		self.protocol.send(**obj)
 
@@ -324,7 +323,7 @@ class ServerState:
 		# Set of already generated keys
 		self.generated_keys: set[str] = set()
 		# Mapping of IPs to generated time for people who have generated keys.
-		self.generated_ips: dict[IAddress, float] = {}
+		self.generated_ips: dict[str, float] = {}
 		self.motd: str | None = None
 
 	def remove_channel(self, channel: str) -> None:
@@ -359,7 +358,7 @@ class Options(usage.Options):
 
 
 # Exclude from coverage as it's hard to unit test.
-def main() -> Deferred:  # pragma: no cover
+def main() -> Deferred[None]:  # pragma: no cover
 	# Read options from CLI.
 	config = Options()
 	config.parseOptions()
