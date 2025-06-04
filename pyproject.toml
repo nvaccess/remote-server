@@ -119,4 +119,3 @@ reportMissingParameterType=false
 reportUnknownLambdaType=false
 reportUnusedVariable=false
 reportOptionalMemberAccess=false
-reportDeprecated=false

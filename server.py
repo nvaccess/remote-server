@@ -153,7 +153,7 @@ class Handler(LineReceiver):
 			if not isinstance(parsed, dict):
 				raise ValueError
 		except ValueError:
-			logger.warn("Unable to parse %r", line)
+			logger.warning("Unable to parse %r", line)
 			self.transport.loseConnection()
 			return
 		if "type" not in parsed:
