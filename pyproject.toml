@@ -1,0 +1,11 @@
+[project]
+name = "remote-server"
+version = "0.1.0"
+description = "NVDA Remote Access remote relay server."
+readme = "README.md"
+requires-python = ">=3.13.3"
+dependencies = [
+    "pyopenssl>=25.1.0",
+    "service-identity>=24.2.0",
+    "twisted>=24.11.0",
+]
