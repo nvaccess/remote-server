@@ -1,0 +1,15 @@
+name: Check types with Pyright
+
+on: push
+
+jobs:
+  pyright:
+    name: Check types with pyright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+      - uses: jakebailey/pyright-action@v2
+        with:
+          version: 1.1.401
