@@ -47,11 +47,8 @@ reportAttributeAccessIssue = false
 reportUnknownMemberType = false
 reportOptionalMemberAccess = false
 # The following option causes problems due to dynamic member access
-<<<<<<< HEAD
 reportUnknownArgumentType = false
-=======
-reportUnknownArgumentType=false
->>>>>>> 65ec5c5 (Move to pyproject.toml for ruff config)
+
 
 [tool.ruff]
 line-length = 110
