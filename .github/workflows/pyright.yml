@@ -1,6 +1,13 @@
 name: Check types with Pyright
 
-on: push
+on:
+  push:
+    branches:
+    - main
+
+  pull_request:
+    branches:
+    - main
 
 jobs:
   pyright:
