@@ -3,6 +3,9 @@ from unittest import mock
 from server import RemoteServerFactory, Channel, User, Handler, ServerState
 
 class TestUser(unittest.TestCase):
+	def setUp(self) -> None:
+		User.user_id = 0
+		
 	def test_consecutiveUserCreation(self):
 		"""Test that creating several users sequentially creates them with sequential user IDs."""
 		users = (User(mock.Mock(Handler)) for _ in range(10))
