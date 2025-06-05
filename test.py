@@ -1,3 +1,4 @@
+from typing import Final
 from twisted.trial import unittest
 from twisted.internet.testing import StringTransport
 from twisted.internet.task import Clock
@@ -51,7 +52,19 @@ class TestServerState(unittest.TestCase):
 
 
 class TestGenerateKey(unittest.TestCase):
+	RANDOM_SEED: Final[int] = 0
+	EXPECTED_KEYS: Final[tuple[str, str, str]] = ('6604876', '4759382', '4219489')
+	"""
+	First 3 keys generated with current key generation method and random seed of 0.
+
+	>>> import random, string
+	>>> random.seed(0)
+	>>> tuple("".join(random.choice(string.digits) for _ in range(7)) for _ in range(3))
+	('6604876', '4759382', '4219489')
+	"""
+
 	def setUp(self) -> None:
+		import random
 		self.clock = Clock()
 		reactor.callLater = self.clock.callLater
 		self.state = ServerState()
@@ -60,18 +73,48 @@ class TestGenerateKey(unittest.TestCase):
 		self.protocol = factory.buildProtocol(('127.0.01', 0))
 		self.transport = StringTransport()
 		self.protocol.makeConnection(self.transport)
+		random.seed(self.RANDOM_SEED)
 	
 	def _test(self, serverReceived: bytes, clientReceived: bytes) -> None:
 		self.protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
 		self.protocol.dataReceived(json.dumps(serverReceived).encode() + b'\n')
+		print(self.transport.value())
 		self.assertEqual(json.loads(self.transport.value().decode()), clientReceived)
 		self.protocol.dataReceived(json.dumps(None).encode())
+		self.transport.clear()
 
 	def test_generateKey(self):
-		import random
-		random.seed(0)
-		key = "6604876"
+		"""Test that requesting the server to generate a key returns the expected result, and temporarily persists the key to avoid collisions."""
+		key = self.EXPECTED_KEYS[0]
 		self._test({"type": "generate_key"}, {"type": "generate_key", "key": key})
-		self.assertIn(key, self.state.generated_keys)
+		self.assertIn(key, self.state.generated_keys, "Key was not persisted where expected.")
 		self.clock.advance(GENERATED_KEY_EXPIRATION_TIME)
-		self.assertNotIn(key, self.state.generated_keys)
+		self.assertNotIn(key, self.state.generated_keys, "Key was not removed after expiration.")
+	
+	@mock.patch('time.time', return_value=12345)
+	def test_repeated_generateKey_ok(self, mock_time: mock.MagicMock):
+		"""Test that multiple requests to generate a key result in different keys."""
+		for key in self.EXPECTED_KEYS:
+			self._test({"type": "generate_key"}, {"type": "generate_key", "key": key})
+			# Increment the time so the server knows we're not spamming it
+			mock_time.return_value += 10
+	
+	@mock.patch('time.time', return_value=12345)
+	def test_repeated_generateKey_spam(self, mock_time: mock.MagicMock):
+		"""Test that multiple requests to generate a key in quick succession result in an error."""
+		self._test({"type": "generate_key"}, {"type": "generate_key", "key": self.EXPECTED_KEYS[0]})
+		mock_time.return_value += 0.5
+		self._test({"type": "generate_key"}, {"type": "error", "message": "too many keys"})
+
+	@mock.patch('time.time', return_value=12345)
+	def test_generateKey_collision(self, mock_time: mock.MagicMock):
+		"""Test that key requests don't result in the same key."""
+		import random
+		self._test({"type": "generate_key"}, {"type": "generate_key", "key": self.EXPECTED_KEYS[0]})
+		# Increment the time so the server doesn't think we're spamming it.
+		mock_time.return_value += 10
+		# And force the PRNG back to a prior state to guarantee a collision.
+		random.seed(self.RANDOM_SEED)
+		self._test({"type": "generate_key"}, {"type": "generate_key", "key": self.EXPECTED_KEYS[1]})
+
+
