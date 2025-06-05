@@ -73,14 +73,12 @@ class TestGenerateKey(unittest.TestCase):
 		self.protocol = factory.buildProtocol(('127.0.01', 0))
 		self.transport = StringTransport()
 		self.protocol.makeConnection(self.transport)
+		self.protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
 		random.seed(self.RANDOM_SEED)
 	
 	def _test(self, serverReceived: bytes, clientReceived: bytes) -> None:
-		self.protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
 		self.protocol.dataReceived(json.dumps(serverReceived).encode() + b'\n')
-		print(self.transport.value())
 		self.assertEqual(json.loads(self.transport.value().decode()), clientReceived)
-		self.protocol.dataReceived(json.dumps(None).encode())
 		self.transport.clear()
 
 	def test_generateKey(self):
