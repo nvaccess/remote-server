@@ -74,3 +74,10 @@ ignore = [
 	# indentation contains tabs
 	"W191",
 ]
+
+[tool.coverage.run]
+branch = true
+command_line = "-m twisted.trial ./test.py"
+
+[tool.coverage.report]
+fail_under = 80
