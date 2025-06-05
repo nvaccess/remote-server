@@ -11,6 +11,6 @@ jobs:
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6.1.0
       - name: Setup environment
-        run: uv sync
+        run: uv sync --dev
       - name: Run pyright
         run: uvx pyright
