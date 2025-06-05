@@ -1,6 +1,10 @@
 from twisted.trial import unittest
+from twisted.internet.testing import StringTransport
+from twisted.internet.task import Clock
+from twisted.internet import reactor
 from unittest import mock
-from server import RemoteServerFactory, Channel, User, Handler, ServerState
+from server import RemoteServerFactory, Channel, User, Handler, ServerState, GENERATED_KEY_EXPIRATION_TIME 
+import json
 
 class TestUser(unittest.TestCase):
 	def setUp(self) -> None:
@@ -45,3 +49,29 @@ class TestServerState(unittest.TestCase):
 		self.assertIs(expectedChannel, foundChannel)
 		self.assertEqual(oldChannels, self.serverState.channels)
 
+
+class TestGenerateKey(unittest.TestCase):
+	def setUp(self) -> None:
+		self.clock = Clock()
+		reactor.callLater = self.clock.callLater
+		self.state = ServerState()
+		factory = RemoteServerFactory(self.state)
+		factory.protocol = Handler
+		self.protocol = factory.buildProtocol(('127.0.01', 0))
+		self.transport = StringTransport()
+		self.protocol.makeConnection(self.transport)
+	
+	def _test(self, serverReceived: bytes, clientReceived: bytes) -> None:
+		self.protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
+		self.protocol.dataReceived(json.dumps(serverReceived).encode() + b'\n')
+		self.assertEqual(json.loads(self.transport.value().decode()), clientReceived)
+		self.protocol.dataReceived(json.dumps(None).encode())
+
+	def test_generateKey(self):
+		import random
+		random.seed(0)
+		key = "6604876"
+		self._test({"type": "generate_key"}, {"type": "generate_key", "key": key})
+		self.assertIn(key, self.state.generated_keys)
+		self.clock.advance(GENERATED_KEY_EXPIRATION_TIME)
+		self.assertNotIn(key, self.state.generated_keys)
