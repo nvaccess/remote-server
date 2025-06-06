@@ -232,17 +232,59 @@ class TestP2P(BaseServerTestCase):
 class TestChannel(unittest.TestCase):
 	def setUp(self) -> None:
 		self.state = ServerState()
+		self.channel = Channel("channel", self.state)
+		self.state.channels["channel"] = self.channel
 
 	def test_addClient(self):
-		channel = Channel("channel", self.state)
 		oldUsers = [mockUser(id=id) for id in range(3)]
-		channel.clients.update({user.user_id: user for user in oldUsers})
+		self.channel.clients.update({user.user_id: user for user in oldUsers})
 		newUser = mockUser(id=4)
-		channel.add_client(newUser)
-		self.assertEqual(newUser, channel.clients[4])
+		self.channel.add_client(newUser)
+		self.assertEqual(newUser, self.channel.clients[4])
 		newUser.send.assert_called_once()
 		self.assertEqual(newUser.send.call_args.kwargs['type'], 'channel_joined')
 		for oldUser in oldUsers:
 			oldUser.send.assert_called_once()
 			self.assertEqual(oldUser.send.call_args.kwargs['type'], 'client_joined')
+	
+	def test_removeConnection(self):
+		allUsers = [mockUser(id=id) for id in range(4)]
+		leavingUser = allUsers[1]
+		leftUsers = [user for user in allUsers if user is not leavingUser]
+		self.channel.clients.update({user.user_id: user for user in allUsers})
+		self.channel.remove_connection(leavingUser)
+		self.assertNotIn(leavingUser.user_id, self.channel.clients)
+		self.assertNotIn(leavingUser, self.channel.clients.values())
+		for leftUser in leftUsers:
+			leftUser.send.assert_called_once()
+			self.assertEqual(leftUser.send.call_args.kwargs['type'], 'client_left')
+		
+	def test_cleanup(self):
+		user = mockUser(id=1)
+		self.channel.add_client(user)
+		self.channel.remove_connection(user)
+		self.assertNotIn("channel", self.state.channels)
+	
+	def test_sendToClients_all(self):
+		users = [mockUser(id) for id in range(4)]
+		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.send_to_clients({"this": "is a message"}, origin=99)
+		for user in users:
+			user.send.assert_called_once_with(this="is a message", origin=99)
 
+	def test_sendToClients_except(self):
+		users = [mockUser(id) for id in range(4)]
+		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.send_to_clients({"this": "is a message"}, origin=99, exclude=users[2])
+		for user in users:
+			if user is users[2]:
+				user.send.assert_not_called()
+			else:
+				user.send.assert_called_once_with(this="is a message", origin=99)
+	
+	def test_ping(self):
+		users = [mockUser(id) for id in range(4)]
+		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.ping_clients()
+		for user in users:
+			user.send.assert_called_once_with(type='ping', origin=None)
