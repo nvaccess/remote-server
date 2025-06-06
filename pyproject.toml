@@ -80,4 +80,4 @@ branch = true
 command_line = "-m twisted.trial ./test.py"
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 90
