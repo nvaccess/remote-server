@@ -23,6 +23,7 @@ class Client(NamedTuple):
 
 
 def mockUser(id: int) -> mock.MagicMock:
+	"""Create a MagicMock representing a user."""
 	return mock.MagicMock(
 		spec=User,
 		user_id=id,
@@ -30,12 +31,85 @@ def mockUser(id: int) -> mock.MagicMock:
 	)
 
 def MockHandler(protocol_version: int=2) -> mock.MagicMock:
+	"""Return a MagicMock representing a Handler."""
 	return mock.MagicMock(
 		spec=Handler,
 		protocol_version=protocol_version
 	)
 
+
+class TestChannel(unittest.TestCase):
+	"""Test the Channel class."""
+
+	def setUp(self) -> None:
+		self.state = ServerState()
+		self.channel = Channel("channel", self.state)
+		self.state.channels["channel"] = self.channel
+
+	def test_addClient(self):
+		"""Test adding a client to a channel."""
+		oldUsers = [mockUser(id=id) for id in range(3)]
+		self.channel.clients.update({user.user_id: user for user in oldUsers})
+		newUser = mockUser(id=4)
+		self.channel.add_client(newUser)
+		self.assertEqual(newUser, self.channel.clients[4])
+		newUser.send.assert_called_once()
+		self.assertEqual(newUser.send.call_args.kwargs['type'], 'channel_joined')
+		for oldUser in oldUsers:
+			oldUser.send.assert_called_once()
+			self.assertEqual(oldUser.send.call_args.kwargs['type'], 'client_joined')
+	
+	def test_removeConnection(self):
+		"""Test removing a client from a channel."""
+		allUsers = [mockUser(id=id) for id in range(4)]
+		leavingUser = allUsers[1]
+		leftUsers = [user for user in allUsers if user is not leavingUser]
+		self.channel.clients.update({user.user_id: user for user in allUsers})
+		self.channel.remove_connection(leavingUser)
+		self.assertNotIn(leavingUser.user_id, self.channel.clients)
+		self.assertNotIn(leavingUser, self.channel.clients.values())
+		for leftUser in leftUsers:
+			leftUser.send.assert_called_once()
+			self.assertEqual(leftUser.send.call_args.kwargs['type'], 'client_left')
+		
+	def test_cleanup(self):
+		"""Test removing the last client removes the channel from the server state."""
+		user = mockUser(id=1)
+		self.channel.add_client(user)
+		self.channel.remove_connection(user)
+		self.assertNotIn("channel", self.state.channels)
+	
+	def test_sendToClients_all(self):
+		"""Test sending to all clients in the channel."""
+		users = [mockUser(id) for id in range(4)]
+		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.send_to_clients({"this": "is a message"}, origin=99)
+		for user in users:
+			user.send.assert_called_once_with(this="is a message", origin=99)
+
+	def test_sendToClients_except(self):
+		"""Test sending to all clients but one in the channel."""
+		users = [mockUser(id) for id in range(4)]
+		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.send_to_clients({"this": "is a message"}, origin=99, exclude=users[2])
+		for user in users:
+			if user is users[2]:
+				user.send.assert_not_called()
+			else:
+				user.send.assert_called_once_with(this="is a message", origin=99)
+	
+	def test_ping(self):
+		"""Test pinging the clients in the channel."""
+		users = [mockUser(id) for id in range(4)]
+		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.ping_clients()
+		for user in users:
+			user.send.assert_called_once_with(type='ping', origin=None)
+
+
 class TestUser(unittest.TestCase):
+	"""Test the User class."""
+
 	def setUp(self) -> None:
 		User.user_id = 0
 	
@@ -49,10 +123,12 @@ class TestUser(unittest.TestCase):
 
 
 class TestServerState(unittest.TestCase):
+	"""Test the ServerState class."""
 	def setUp(self) -> None:
 		self.serverState = ServerState()
 
 	def _addChannels(self) -> list[Channel]:
+		"""Add several channels to the ServerState."""
 		channels = [
 			Channel(key, self.serverState)
 			for key in 'abcd'
@@ -72,7 +148,7 @@ class TestServerState(unittest.TestCase):
 		self.assertNotEqual(oldChannels, self.serverState.channels)
 	
 	def test_findOrCreateChannel_find(self):
-		"""Check that passing an existant key returns the associated channelcreates a new channel."""
+		"""Check that passing an existant key returns the associated channel."""
 		exttantChannels = self._addChannels()
 		oldChannels = self.serverState.channels.copy()
 		self.assertIn('c', self.serverState.channels)
@@ -113,6 +189,8 @@ class BaseServerTestCase(unittest.TestCase):
 
 
 class TestGenerateKey(BaseServerTestCase):
+	"""Tests for the key generation functionality."""
+
 	RANDOM_SEED: Final[int] = 0
 	EXPECTED_KEYS: Final[tuple[str, str, str]] = ('6604876', '4759382', '4219489')
 	"""
@@ -171,10 +249,14 @@ class TestGenerateKey(BaseServerTestCase):
 
 
 class TestP2P(BaseServerTestCase):
+	"""Test the peer-to-peer functionality of the server."""
+
 	def _send(self, client: Client, payload: dict[str, Any]) -> None:
+		"""Client sends payload to the server."""
 		client.protocol.dataReceived(json.dumps(payload).encode() + b'\n')
 	
 	def _receive(self, client: Client) -> dict[str, Any]:
+		"""Client receives payload from the server."""
 		received = json.loads(client.transport.value().decode())
 		client.transport.clear()
 		return received
@@ -204,11 +286,13 @@ class TestP2P(BaseServerTestCase):
 		self.assertNotIn('channel1', self.state.channels)
 	
 	def _makeMessage(self, index: int) -> tuple[dict[str, Any], dict[str, Any]]:
+		"""Helper method for broadcast testing."""
 		outgoing = dict(type="message", message=f"This is client {index+1} speaking.")
 		incoming = outgoing | dict(origin=index+1)
 		return outgoing, incoming
 	
 	def test_broadcast(self):
+		"""Test that sending a message in a channel results in all other clients in the channel receiving that message."""
 		NUM_CLIENTS = 4
 		clients = [self._connectClient() for _ in range(NUM_CLIENTS)]
 		for index, client in enumerate(clients):
@@ -229,62 +313,3 @@ class TestP2P(BaseServerTestCase):
 							self.assertEqual(self._receive(receiver), incoming)
 
 
-class TestChannel(unittest.TestCase):
-	def setUp(self) -> None:
-		self.state = ServerState()
-		self.channel = Channel("channel", self.state)
-		self.state.channels["channel"] = self.channel
-
-	def test_addClient(self):
-		oldUsers = [mockUser(id=id) for id in range(3)]
-		self.channel.clients.update({user.user_id: user for user in oldUsers})
-		newUser = mockUser(id=4)
-		self.channel.add_client(newUser)
-		self.assertEqual(newUser, self.channel.clients[4])
-		newUser.send.assert_called_once()
-		self.assertEqual(newUser.send.call_args.kwargs['type'], 'channel_joined')
-		for oldUser in oldUsers:
-			oldUser.send.assert_called_once()
-			self.assertEqual(oldUser.send.call_args.kwargs['type'], 'client_joined')
-	
-	def test_removeConnection(self):
-		allUsers = [mockUser(id=id) for id in range(4)]
-		leavingUser = allUsers[1]
-		leftUsers = [user for user in allUsers if user is not leavingUser]
-		self.channel.clients.update({user.user_id: user for user in allUsers})
-		self.channel.remove_connection(leavingUser)
-		self.assertNotIn(leavingUser.user_id, self.channel.clients)
-		self.assertNotIn(leavingUser, self.channel.clients.values())
-		for leftUser in leftUsers:
-			leftUser.send.assert_called_once()
-			self.assertEqual(leftUser.send.call_args.kwargs['type'], 'client_left')
-		
-	def test_cleanup(self):
-		user = mockUser(id=1)
-		self.channel.add_client(user)
-		self.channel.remove_connection(user)
-		self.assertNotIn("channel", self.state.channels)
-	
-	def test_sendToClients_all(self):
-		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.send_to_clients({"this": "is a message"}, origin=99)
-		for user in users:
-			user.send.assert_called_once_with(this="is a message", origin=99)
-
-	def test_sendToClients_except(self):
-		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.send_to_clients({"this": "is a message"}, origin=99, exclude=users[2])
-		for user in users:
-			if user is users[2]:
-				user.send.assert_not_called()
-			else:
-				user.send.assert_called_once_with(this="is a message", origin=99)
-	
-	def test_ping(self):
-		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.ping_clients()
-		for user in users:
-			user.send.assert_called_once_with(type='ping', origin=None)
