@@ -1,12 +1,25 @@
-from typing import Any, Final
-from twisted.trial import unittest
-from twisted.internet.testing import StringTransport
-from twisted.internet.task import Clock
+import json
+import random
+from typing import Any, Final, NamedTuple
+from unittest import mock
+
 from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, connectionDone
-from unittest import mock
-from server import RemoteServerFactory, Channel, User, Handler, ServerState, GENERATED_KEY_EXPIRATION_TIME 
-import json
+from twisted.internet.task import Clock
+from twisted.internet.testing import StringTransport
+from twisted.trial import unittest
+
+from server import GENERATED_KEY_EXPIRATION_TIME, Channel, Handler, RemoteServerFactory, ServerState, User
+
+
+class Client(NamedTuple):
+	"""Structure representing a client connection to the server."""
+
+	protocol: Protocol
+	"""Serverside protocol. Write to this to represent the client sending to the server."""
+
+	transport: StringTransport
+	"""Connection transport. Read from this to represent the client receiving a response from the server."""
 
 class TestUser(unittest.TestCase):
 	def setUp(self) -> None:
@@ -54,8 +67,38 @@ class TestServerState(unittest.TestCase):
 		self.assertIs(expectedChannel, foundChannel)
 		self.assertEqual(oldChannels, self.serverState.channels)
 
+class BaseServerTestCase(unittest.TestCase):
+	"""Base for test cases covering the server.
 
-class TestGenerateKey(unittest.TestCase):
+	Handles instantiation and cleanup of connections and global objects.
+	"""
+
+	def setUp(self) -> None:
+		# Ensure we're starting from a common baseline
+		self._oldUserId = User.user_id
+		User.user_id = 0
+		self.state = ServerState()
+		self.factory = RemoteServerFactory(self.state)
+		self.factory.protocol = Handler
+	
+	def tearDown(self) -> None:
+		# Put things back how they were wen we found them
+		User.user_id = self._oldUserId
+	
+	def _connectClient(self) -> Client:
+		"""Create and initialize a new connection."""
+		protocol = self.factory.buildProtocol(('127.0.0.1', 0))
+		transport = StringTransport()
+		protocol.makeConnection(transport)
+		protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
+		return Client(protocol=protocol, transport=transport)
+
+	def _disconnectClient(self, client: Client) -> None:
+		"""Disconnect an existing client."""
+		client.protocol.connectionLost(connectionDone)
+
+
+class TestGenerateKey(BaseServerTestCase):
 	RANDOM_SEED: Final[int] = 0
 	EXPECTED_KEYS: Final[tuple[str, str, str]] = ('6604876', '4759382', '4219489')
 	"""
@@ -68,16 +111,10 @@ class TestGenerateKey(unittest.TestCase):
 	"""
 
 	def setUp(self) -> None:
-		import random
+		super().setUp()
 		self.clock = Clock()
 		reactor.callLater = self.clock.callLater
-		self.state = ServerState()
-		factory = RemoteServerFactory(self.state)
-		factory.protocol = Handler
-		self.protocol = factory.buildProtocol(('127.0.01', 0))
-		self.transport = StringTransport()
-		self.protocol.makeConnection(self.transport)
-		self.protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
+		self.protocol, self.transport = self._connectClient()
 		random.seed(self.RANDOM_SEED)
 	
 	def _test(self, serverReceived: bytes, clientReceived: bytes) -> None:
@@ -111,7 +148,6 @@ class TestGenerateKey(unittest.TestCase):
 	@mock.patch('time.time', return_value=12345)
 	def test_generateKey_collision(self, mock_time: mock.MagicMock):
 		"""Test that key requests don't result in the same key."""
-		import random
 		self._test({"type": "generate_key"}, {"type": "generate_key", "key": self.EXPECTED_KEYS[0]})
 		# Increment the time so the server doesn't think we're spamming it.
 		mock_time.return_value += 10
@@ -120,49 +156,36 @@ class TestGenerateKey(unittest.TestCase):
 		self._test({"type": "generate_key"}, {"type": "generate_key", "key": self.EXPECTED_KEYS[1]})
 
 
-class TestP2P(unittest.TestCase):
-	def setUp(self) -> None:
-		self.ipLSB = 1
-		self.state = ServerState()
-		self.factory = RemoteServerFactory(self.state)
-		self.factory.protocol = Handler
-		User.user_id = 0
+class TestP2P(BaseServerTestCase):
+	def _send(self, client: Client, payload: dict[str, Any]) -> None:
+		client.protocol.dataReceived(json.dumps(payload).encode() + b'\n')
 	
-	def _addClient(self) -> tuple[Protocol, StringTransport]:
-		protocol = self.factory.buildProtocol((f'127.0.0.{self.ipLSB}', 0))
-		self.ipLSB += 1
-		transport = StringTransport()
-		protocol.makeConnection(transport)
-		protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
-		return protocol, transport
-	
-	def _send(self, protocol: Protocol, payload: dict[str, Any]) -> None:
-		protocol.dataReceived(json.dumps(payload).encode() + b'\n')
-	
-	def _receive(self, transport: StringTransport, payload: dict[str, Any]) -> None:
-		self.assertEqual(json.loads(transport.value().decode()), payload)
-		transport.clear()
+	def _receive(self, client: Client) -> dict[str, Any]:
+		received = json.loads(client.transport.value().decode())
+		client.transport.clear()
+		return received
 
 	def test_lifecycle(self):
+		"""Test channel lifecycle, from initial connection to final disconnection."""
 		# Our channel should not exist yet
 		self.assertNotIn('channel1', self.state.channels)
 		# Create 2 clients
-		p1, t1 = self._addClient()
-		p2, t2 = self._addClient()
+		c1 = self._connectClient()
+		c2 = self._connectClient()
 		# Client 1 join channel 1 as leader
-		self._send(p1, {'type': 'join', 'channel': 'channel1', 'connection_type': 'master'})
+		self._send(c1, {'type': 'join', 'channel': 'channel1', 'connection_type': 'master'})
 		# The channel should have been created
 		self.assertIn('channel1', self.state.channels)
-		self._receive(t1, {'type': 'channel_joined', 'channel': 'channel1', 'origin': 1, 'clients': []})
+		self.assertEqual(self._receive(c1), {'type': 'channel_joined', 'channel': 'channel1', 'origin': 1, 'clients': []})
 		# Client 2 join channel 1 as follower
-		self._send(p2, {'type': 'join', 'channel': 'channel1', 'connection_type': 'slave'})
-		self._receive(t2, {'type': 'channel_joined', 'channel': 'channel1', 'origin': 2, 'clients': [{'id': 1, 'connection_type': 'master'}]})
-		self._receive(t1, {'type':'client_joined', 'client': {'id': 2, 'connection_type': 'slave'}})
+		self._send(c2, {'type': 'join', 'channel': 'channel1', 'connection_type': 'slave'})
+		self.assertEqual(self._receive(c2), {'type': 'channel_joined', 'channel': 'channel1', 'origin': 2, 'clients': [{'id': 1, 'connection_type': 'master'}]})
+		self.assertEqual(self._receive(c1), {'type':'client_joined', 'client': {'id': 2, 'connection_type': 'slave'}})
 		# Client 1 leave channel 1
-		p1.connectionLost(connectionDone)
-		self._receive(t2, {'type':'client_left', 'client': {'id': 1, 'connection_type': 'master'}})
+		self._disconnectClient(c1)
+		self.assertEqual(self._receive(c2), {'type':'client_left', 'client': {'id': 1, 'connection_type': 'master'}})
 		# client 2 leave channel 1
-		p2.connectionLost(connectionDone)
+		self._disconnectClient(c2)
 		# The channel should have been deleted
 		self.assertNotIn('channel1', self.state.channels)
 
