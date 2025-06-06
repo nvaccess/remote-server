@@ -188,5 +188,28 @@ class TestP2P(BaseServerTestCase):
 		self._disconnectClient(c2)
 		# The channel should have been deleted
 		self.assertNotIn('channel1', self.state.channels)
-
-
+	
+	def _makeMessage(self, index: int) -> tuple[dict[str, Any], dict[str, Any]]:
+		outgoing = dict(type="message", message=f"This is client {index+1} speaking.")
+		incoming = outgoing | dict(origin=index+1)
+		return outgoing, incoming
+	
+	def test_broadcast(self):
+		NUM_CLIENTS = 4
+		clients = [self._connectClient() for _ in range(NUM_CLIENTS)]
+		for index, client in enumerate(clients):
+			self._send(client, {'type': 'join', 'channel': 'channel1', 'connection_type': 'slave' if index % 2 == 0 else 'master'})
+		for client in clients:
+			client.transport.clear()
+		for index, sender in enumerate(clients):
+			with self.subTest(f"Broadcasting from client {index}"):
+				outgoing, incoming = self._makeMessage(index)
+				self.assertIsNotNone(incoming)
+				self._send(sender, outgoing)
+				for jndex, receiver in enumerate(clients):
+					with self.subTest(f"Client {jndex} receiving."):
+						if receiver is sender:
+							# This is the origin, so we shouldn't have received anything.
+							self.assertFalse(receiver.transport.value())
+						else:
+							self.assertEqual(self._receive(receiver), incoming)
