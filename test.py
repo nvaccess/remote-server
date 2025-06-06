@@ -21,6 +21,20 @@ class Client(NamedTuple):
 	transport: StringTransport
 	"""Connection transport. Read from this to represent the client receiving a response from the server."""
 
+
+def mockUser(id: int) -> mock.MagicMock:
+	return mock.MagicMock(
+		spec=User,
+		user_id=id,
+		protocol = MockHandler(),
+	)
+
+def MockHandler(protocol_version: int=2) -> mock.MagicMock:
+	return mock.MagicMock(
+		spec=Handler,
+		protocol_version=protocol_version
+	)
+
 class TestUser(unittest.TestCase):
 	def setUp(self) -> None:
 		User.user_id = 0
@@ -213,3 +227,22 @@ class TestP2P(BaseServerTestCase):
 							self.assertFalse(receiver.transport.value())
 						else:
 							self.assertEqual(self._receive(receiver), incoming)
+
+
+class TestChannel(unittest.TestCase):
+	def setUp(self) -> None:
+		self.state = ServerState()
+
+	def test_addClient(self):
+		channel = Channel("channel", self.state)
+		oldUsers = [mockUser(id=id) for id in range(3)]
+		channel.clients.update({user.user_id: user for user in oldUsers})
+		newUser = mockUser(id=4)
+		channel.add_client(newUser)
+		self.assertEqual(newUser, channel.clients[4])
+		newUser.send.assert_called_once()
+		self.assertEqual(newUser.send.call_args.kwargs['type'], 'channel_joined')
+		for oldUser in oldUsers:
+			oldUser.send.assert_called_once()
+			self.assertEqual(oldUser.send.call_args.kwargs['type'], 'client_joined')
+
