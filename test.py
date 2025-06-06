@@ -1,14 +1,18 @@
-from typing import Final
+from typing import Any, Final
 from twisted.trial import unittest
 from twisted.internet.testing import StringTransport
 from twisted.internet.task import Clock
 from twisted.internet import reactor
+from twisted.internet.protocol import Protocol, connectionDone
 from unittest import mock
 from server import RemoteServerFactory, Channel, User, Handler, ServerState, GENERATED_KEY_EXPIRATION_TIME 
 import json
 
 class TestUser(unittest.TestCase):
 	def setUp(self) -> None:
+		User.user_id = 0
+	
+	def tearDown(self) -> None:
 		User.user_id = 0
 		
 	def test_consecutiveUserCreation(self):
@@ -114,5 +118,52 @@ class TestGenerateKey(unittest.TestCase):
 		# And force the PRNG back to a prior state to guarantee a collision.
 		random.seed(self.RANDOM_SEED)
 		self._test({"type": "generate_key"}, {"type": "generate_key", "key": self.EXPECTED_KEYS[1]})
+
+
+class TestP2P(unittest.TestCase):
+	def setUp(self) -> None:
+		self.ipLSB = 1
+		self.state = ServerState()
+		self.factory = RemoteServerFactory(self.state)
+		self.factory.protocol = Handler
+		User.user_id = 0
+	
+	def _addClient(self) -> tuple[Protocol, StringTransport]:
+		protocol = self.factory.buildProtocol((f'127.0.0.{self.ipLSB}', 0))
+		self.ipLSB += 1
+		transport = StringTransport()
+		protocol.makeConnection(transport)
+		protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
+		return protocol, transport
+	
+	def _send(self, protocol: Protocol, payload: dict[str, Any]) -> None:
+		protocol.dataReceived(json.dumps(payload).encode() + b'\n')
+	
+	def _receive(self, transport: StringTransport, payload: dict[str, Any]) -> None:
+		self.assertEqual(json.loads(transport.value().decode()), payload)
+		transport.clear()
+
+	def test_lifecycle(self):
+		# Our channel should not exist yet
+		self.assertNotIn('channel1', self.state.channels)
+		# Create 2 clients
+		p1, t1 = self._addClient()
+		p2, t2 = self._addClient()
+		# Client 1 join channel 1 as leader
+		self._send(p1, {'type': 'join', 'channel': 'channel1', 'connection_type': 'master'})
+		# The channel should have been created
+		self.assertIn('channel1', self.state.channels)
+		self._receive(t1, {'type': 'channel_joined', 'channel': 'channel1', 'origin': 1, 'clients': []})
+		# Client 2 join channel 1 as follower
+		self._send(p2, {'type': 'join', 'channel': 'channel1', 'connection_type': 'slave'})
+		self._receive(t2, {'type': 'channel_joined', 'channel': 'channel1', 'origin': 2, 'clients': [{'id': 1, 'connection_type': 'master'}]})
+		self._receive(t1, {'type':'client_joined', 'client': {'id': 2, 'connection_type': 'slave'}})
+		# Client 1 leave channel 1
+		p1.connectionLost(connectionDone)
+		self._receive(t2, {'type':'client_left', 'client': {'id': 1, 'connection_type': 'master'}})
+		# client 2 leave channel 1
+		p2.connectionLost(connectionDone)
+		# The channel should have been deleted
+		self.assertNotIn('channel1', self.state.channels)
 
 
