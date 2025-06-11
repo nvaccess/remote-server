@@ -19,10 +19,10 @@ jobs:
       - name: Generate coverage artifacts
         if: ${{ failure() }}
         run: |
-          uv run coverage html
-          uv run coverage xml
-          uv run coverage json
-          uv run coverage lcov
+          uv run coverage html --fail-under 0
+          uv run coverage xml -fail-under 0
+          uv run coverage json --fail-under 0
+          uv run coverage lcov --fail-under 0
           uv run coverage annotate
       - name: Upload artifacts
         if: ${{ failure() }}
