@@ -205,17 +205,32 @@ class BaseServerTestCase(unittest.TestCase):
 		# Put things back how they were wen we found them
 		User.user_id = self._oldUserId
 	
-	def _connectClient(self) -> Client:
-		"""Create and initialize a new connection."""
+	def _createClient(self) -> Client:
+		"""Create a client-server connection."""
 		protocol = self.factory.buildProtocol(('127.0.0.1', 0))
 		transport = StringTransport()
 		protocol.makeConnection(transport)
-		protocol.dataReceived(b'{"type": "protocol_version", "version": 2}\n')
 		return Client(protocol=protocol, transport=transport)
+	
+	def _connectClient(self, protocolVersion: int = 2) -> Client:
+		"""Create and initialize a new connection."""
+		client = self._createClient()
+		self._send(client, dict(type="protocol_version", version=protocolVersion))
+		return client
 
 	def _disconnectClient(self, client: Client) -> None:
 		"""Disconnect an existing client."""
 		client.protocol.connectionLost(connectionDone)
+	
+	def _send(self, client: Client, payload: dict[str, Any]) -> None:
+		"""Client sends payload to the server."""
+		client.protocol.dataReceived(json.dumps(payload).encode() + b'\n')
+	
+	def _receive(self, client: Client) -> dict[str, Any] | None:
+		"""Client receives payload from the server."""
+		received = client.transport.value().decode()
+		client.transport.clear()
+		return json.loads(received) if received else None
 
 
 class TestGenerateKey(BaseServerTestCase):
@@ -278,17 +293,7 @@ class TestGenerateKey(BaseServerTestCase):
 
 class TestP2P(BaseServerTestCase):
 	"""Test the peer-to-peer functionality of the server."""
-
-	def _send(self, client: Client, payload: dict[str, Any]) -> None:
-		"""Client sends payload to the server."""
-		client.protocol.dataReceived(json.dumps(payload).encode() + b'\n')
 	
-	def _receive(self, client: Client) -> dict[str, Any] | None:
-		"""Client receives payload from the server."""
-		received = client.transport.value().decode()
-		client.transport.clear()
-		return json.loads(received) if received else None
-
 	def test_lifecycle(self):
 		"""Test channel lifecycle, from initial connection to final disconnection."""
 		# Our channel should not exist yet
@@ -378,4 +383,3 @@ class TestP2P(BaseServerTestCase):
 		self.assertFalse(client.transport.disconnecting)
 		self.clock.advance(INITIAL_TIMEOUT + 1)
 		self.assertTrue(client.transport.disconnecting)
-	
