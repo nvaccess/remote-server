@@ -20,7 +20,7 @@ jobs:
         if: ${{ failure() }}
         run: |
           uv run coverage html --fail-under 0
-          uv run coverage xml -fail-under 0
+          uv run coverage xml --fail-under 0
           uv run coverage json --fail-under 0
           uv run coverage lcov --fail-under 0
           uv run coverage annotate
