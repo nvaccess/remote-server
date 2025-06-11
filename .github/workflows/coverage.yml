@@ -1,0 +1,35 @@
+name: Run automated tests
+
+on: push
+
+jobs:
+  coverage:
+    name: Check coverage with coverage.py
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6.1.0
+      - name: Setup environment
+        run: uv sync --dev
+      - name: Run unit tests
+        run: uv run coverage run
+      - name: Report coverage
+        run: uv run coverage report
+      - name: Generate coverage artifacts
+        if: ${{ failure() }}
+        run: |
+          uv run coverage html
+          uv run coverage xml
+          uv run coverage json
+          uv run coverage lcov
+          uv run coverage annotate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Coverage reports
+          path: |
+            coverage.json
+            coverage.lcov
+            coverage.xml
+            htmlcov/
+            *.py,cover
