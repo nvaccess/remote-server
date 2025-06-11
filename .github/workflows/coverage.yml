@@ -24,7 +24,9 @@ jobs:
           uv run coverage json
           uv run coverage lcov
           uv run coverage annotate
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
         with:
           name: Coverage reports
           path: |
