@@ -81,3 +81,6 @@ command_line = "-m twisted.trial ./test.py"
 
 [tool.coverage.report]
 fail_under = 90
+exclude_also = [
+    'if __name__ == .__main__.:',
+]

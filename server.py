@@ -80,7 +80,7 @@ class Handler(LineReceiver):
 
 	def connectionMade(self):
 		logger.info("Connection %d from %s" % (self.connection_id, self.transport.getPeer()))
-		if isinstance(self.transport, ITCPTransport):
+		if isinstance(self.transport, ITCPTransport):  # pragma: no cover
 			self.transport.setTcpNoDelay(True)
 		self.bytes_sent = 0
 		self.bytes_received = 0
@@ -236,7 +236,9 @@ class Options(usage.Options):
 		["port", "p", "6837", "Server port"],
 	]
 
-def main():
+# Exclude from coverage as it's hard to test due to being multipurpose
+# TODO: Rewrite to make more modular
+def main(): # pragma: no cover
 	config = Options()
 	config.parseOptions()
 	privkey = open(config['privkey']).read()
