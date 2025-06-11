@@ -6,6 +6,8 @@ jobs:
   coverage:
     name: Check coverage with coverage.py
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4.2.2
       - name: Install the latest version of uv
@@ -15,7 +17,7 @@ jobs:
       - name: Run unit tests
         run: uv run coverage run
       - name: Report coverage
-        run: uv run coverage report
+        run: uv run coverage report --format markdown >> $GITHUB_STEP_SUMMARY
       - name: Generate coverage artifacts
         if: ${{ failure() }}
         run: |
