@@ -11,7 +11,7 @@ from twisted.internet.task import Clock
 from twisted.internet.testing import StringTransport
 from twisted.trial import unittest
 
-from server import GENERATED_KEY_EXPIRATION_TIME, Channel, Handler, RemoteServerFactory, ServerState, User
+from server import GENERATED_KEY_EXPIRATION_TIME, INITIAL_TIMEOUT, Channel, Handler, RemoteServerFactory, ServerState, User
 
 
 class Client(NamedTuple):
@@ -169,7 +169,7 @@ class TestServerState(unittest.TestCase):
 
 class TestRemoteServerFactory(unittest.TestCase):
 	"""Test the RemoteServerFactory class."""
-	
+
 	def test_pingClients(self):
 		"""Test that calling ping_connected_clients calls ping_clients on all channels, regardless of size."""
 		serverState = ServerState()
@@ -198,6 +198,8 @@ class BaseServerTestCase(unittest.TestCase):
 		self.state = ServerState()
 		self.factory = RemoteServerFactory(self.state)
 		self.factory.protocol = Handler
+		self.clock = Clock()
+		reactor.callLater = self.clock.callLater
 	
 	def tearDown(self) -> None:
 		# Put things back how they were wen we found them
@@ -232,8 +234,6 @@ class TestGenerateKey(BaseServerTestCase):
 
 	def setUp(self) -> None:
 		super().setUp()
-		self.clock = Clock()
-		reactor.callLater = self.clock.callLater
 		self.protocol, self.transport = self._connectClient()
 		random.seed(self.RANDOM_SEED)
 	
@@ -283,11 +283,11 @@ class TestP2P(BaseServerTestCase):
 		"""Client sends payload to the server."""
 		client.protocol.dataReceived(json.dumps(payload).encode() + b'\n')
 	
-	def _receive(self, client: Client) -> dict[str, Any]:
+	def _receive(self, client: Client) -> dict[str, Any] | None:
 		"""Client receives payload from the server."""
-		received = json.loads(client.transport.value().decode())
+		received = client.transport.value().decode()
 		client.transport.clear()
-		return received
+		return json.loads(received) if received else None
 
 	def test_lifecycle(self):
 		"""Test channel lifecycle, from initial connection to final disconnection."""
@@ -339,5 +339,43 @@ class TestP2P(BaseServerTestCase):
 							self.assertFalse(receiver.transport.value())
 						else:
 							self.assertEqual(self._receive(receiver), incoming)
+	
+	def test_sendNonDictMessage(self):
+		"""Test that sending a message that is not a JSON object fails."""
+		client = self._connectClient()
+		client.protocol.dataReceived(b'"Hello, world!\n"')
+		self.assertFalse(client.transport.value())
+		self.assertTrue(client.transport.disconnecting)
+	
+	def test_typelessMessage(self):
+		"""Test that sending a message without a type field does nothing."""
+		client = self._connectClient()
+		self._send(client, {"key": "value"})
+		self.assertIsNone(self._receive(client))
+	
+	def test_unRecognisedNType(self):
+		"""Test that sending a message with an unrecognised type when not in a channel does nothing."""
+		client = self._connectClient()
+		self._send(client, {"type": "teapot"})
+		self.assertIsNone(self._receive(client))
 
+	def test_join_withoutChannel(self):
+		"""Test that sending a 'join' message without a 'channel' returns an error."""
+		client = self._connectClient()
+		self._send(client, {"type": "join"})
+		self.assertEqual(self._receive(client), {"type": "error", "error": "invalid_parameters"})
 
+	def test_protocol_version_withoutVersion(self):
+		"""Test that sending a 'protocol_version' message without a 'version' returns nothing."""
+		client = self._connectClient()
+		# TODO: Work out how to find the associated Handler and check that its protocol version doesn't change.
+		self._send(client, {"type": "protocol_version"})
+		self.assertIsNone(self._receive(client))
+	
+	def test_inactivityCausesDisconnection(self):
+		"""Test that connecting without joining a channel causes disconnection."""
+		client = self._connectClient()
+		self.assertFalse(client.transport.disconnecting)
+		self.clock.advance(INITIAL_TIMEOUT + 1)
+		self.assertTrue(client.transport.disconnecting)
+	
