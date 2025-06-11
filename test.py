@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+from itertools import islice, tee
 import json
 import random
 from typing import Any, Final, NamedTuple
@@ -35,6 +37,13 @@ def MockHandler(protocol_version: int=2) -> mock.MagicMock:
 	return mock.MagicMock(
 		spec=Handler,
 		protocol_version=protocol_version
+	)
+
+def mockChannel(key: str, clients: Iterable[User]) -> mock.MagicMock:
+	return mock.MagicMock(
+		speck=Channel,
+		key=key,
+		clients={client.user_id: client for client in clients}
 	)
 
 
@@ -156,6 +165,25 @@ class TestServerState(unittest.TestCase):
 		foundChannel = self.serverState.find_or_create_channel('c')
 		self.assertIs(expectedChannel, foundChannel)
 		self.assertEqual(oldChannels, self.serverState.channels)
+
+
+class TestRemoteServerFactory(unittest.TestCase):
+	"""Test the RemoteServerFactory class."""
+	
+	def test_pingClients(self):
+		"""Test that calling ping_connected_clients calls ping_clients on all channels, regardless of size."""
+		serverState = ServerState()
+		factory = RemoteServerFactory(serverState)
+		userIterator = (mockUser(id) for id in range(10))
+		channels = tuple(mockChannel(key=chr(n+65), clients=islice(userIterator, n)) for n in range(5))
+		serverState.channels.update({
+			channel.key: channel
+			for channel in channels
+		})
+		factory.ping_connected_clients()
+		for channel in channels:
+			channel.ping_clients.assert_called_once()
+
 
 class BaseServerTestCase(unittest.TestCase):
 	"""Base for test cases covering the server.
