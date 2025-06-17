@@ -4,12 +4,21 @@ This is a simple server used to relay connections for [NVDA Remote](https://nvda
 
 ## Basic Usage
 
-- Install Python 3 and Pip
-- Create a virtualenv
-- Install requirements into virtualenv
-- Obtain Certificate
-- Run server.py inside virtualenv
+This is currently only tested on Linux.
 
+1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+2. Obtain your TLS certificates.
+    - By default, the server looks for the certificate at `./cert`, the private key at `./privkey`, and the chain of trust at `./chain`.
+    - TBD - update documentation on this/remove this feature in favour of using the web server to handle TLS
+3. run the server with `uv run server.py`.
+
+## Development
+
+This project uses [pre-commit](https://pre-commit.com/) hooks to help ensure code quality. These run automattically on pull requests, however it is still recommended to set them up locally.
+
+```
+uvx pre-commit install
+```
 
 ## Docker
 
