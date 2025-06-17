@@ -158,10 +158,10 @@ class TestServerState(unittest.TestCase):
 	
 	def test_findOrCreateChannel_find(self):
 		"""Check that passing an existant key returns the associated channel."""
-		exttantChannels = self._addChannels()
+		extantChannels = self._addChannels()
 		oldChannels = self.serverState.channels.copy()
 		self.assertIn('c', self.serverState.channels)
-		expectedChannel = exttantChannels[2]
+		expectedChannel = extantChannels[2]
 		foundChannel = self.serverState.find_or_create_channel('c')
 		self.assertIs(expectedChannel, foundChannel)
 		self.assertEqual(oldChannels, self.serverState.channels)
