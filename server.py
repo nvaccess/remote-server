@@ -213,7 +213,7 @@ class ServerState(object):
 		self.generated_keys = set()
 		#Dictionary of ips to generated time for people who have generated keys.
 		self.generated_ips = {}
-		self.motd = None
+		self.motd: str | None = None
 
 	def remove_channel(self, channel):
 		del self.channels[channel]

@@ -202,7 +202,7 @@ class BaseServerTestCase(unittest.TestCase):
 		reactor.callLater = self.clock.callLater
 	
 	def tearDown(self) -> None:
-		# Put things back how they were wen we found them
+		# Put things back how they were when we found them
 		User.user_id = self._oldUserId
 	
 	def _createClient(self) -> Client:
