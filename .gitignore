@@ -1,0 +1,6 @@
+.venv/
+# Temporary unit testing artefacts
+_trial_temp/
+__pycache__/
+.coverage
+*.py,cover

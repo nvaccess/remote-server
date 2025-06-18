@@ -10,6 +10,7 @@ from logging import getLogger
 
 from OpenSSL import crypto
 from twisted.internet import reactor, ssl
+from twisted.internet.interfaces import ITCPTransport
 from twisted.internet.protocol import Factory, defer
 from twisted.internet.task import LoopingCall
 from twisted.protocols.basic import LineReceiver
@@ -30,7 +31,7 @@ class Channel(object):
 		self.server_state = server_state
 
 	def add_client(self, client):
-		if client.protocol.protocol_version == 1:
+		if client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
 			ids = [c.user_id for c in self.clients.values()]
 			msg = dict(type="channel_joined", channel=self.key, user_ids=ids, origin=client.user_id)
 		else:
@@ -38,7 +39,7 @@ class Channel(object):
 			msg = dict(type="channel_joined", channel=self.key, origin=client.user_id, clients=clients)
 		client.send(**msg)
 		for existing_client in self.clients.values():
-			if existing_client.protocol.protocol_version == 1:
+			if existing_client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
 				existing_client.send(type="client_joined", user_id=client.user_id)
 			else:
 				existing_client.send(type="client_joined", client=client.as_dict())
@@ -48,7 +49,7 @@ class Channel(object):
 		if con.user_id in self.clients:
 			del self.clients[con.user_id]
 		for client in self.clients.values():
-			if client.protocol.protocol_version == 1:
+			if client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
 				client.send(type="client_left", user_id=con.user_id)
 			else:
 				client.send(type="client_left", client=con.as_dict())
@@ -77,7 +78,10 @@ class Handler(LineReceiver):
 
 	def connectionMade(self):
 		logger.info("Connection %d from %s" % (self.connection_id, self.transport.getPeer()))
-		self.transport.setTcpNoDelay(True)
+		# We use a non-tcp transport for unit testing,
+		# which doesn't support setTcpNoDelay.
+		if isinstance(self.transport, ITCPTransport):  # pragma: no cover
+			self.transport.setTcpNoDelay(True)
 		self.bytes_sent = 0
 		self.bytes_received = 0
 		self.user = User(protocol=self)
@@ -90,7 +94,9 @@ class Handler(LineReceiver):
 			% (self.connection_id, self.bytes_sent, self.bytes_received),
 		)
 		self.user.connection_lost()
-		if self.cleanup_timer is not None and not self.cleanup_timer.cancelled:
+		if (
+			self.cleanup_timer is not None and not self.cleanup_timer.cancelled
+		):  # pragma: no cover - not sure how to trigger this
 			self.cleanup_timer.cancel()
 
 	def lineReceived(self, line):
@@ -169,12 +175,14 @@ class User(object):
 		self.server_state.generated_keys.add(key)
 		self.server_state.generated_ips[ip] = time.time()
 		reactor.callLater(GENERATED_KEY_EXPIRATION_TIME, lambda: self.server_state.generated_keys.remove(key))
-		if key:
+		if key:  # pragma: no cover - I can't work out why this branch is here. When would this be False?
 			self.send(type="generate_key", key=key)
 		return key
 
 	def connection_lost(self):
-		if self.channel is not None:
+		if (
+			self.channel is not None
+		):  # pragma: no branch - we don't care about the alternative, as it's a no-op
 			self.channel.remove_connection(self)
 
 	def join(self, channel, connection_type):
@@ -185,7 +193,8 @@ class User(object):
 		self.channel = self.server_state.find_or_create_channel(channel)
 		self.channel.add_client(self)
 
-	def do_generate_key(self):
+	# TODO: Work out if this is ever called.
+	def do_generate_key(self):  # pragma: no cover
 		key = self.generate_key()
 		if key:
 			self.send(type="generate_key", key=key)
@@ -214,6 +223,7 @@ class ServerState(object):
 		self.generated_keys = set()
 		# Dictionary of ips to generated time for people who have generated keys.
 		self.generated_ips = {}
+		self.motd: str | None = None
 
 	def remove_channel(self, channel):
 		del self.channels[channel]
@@ -238,7 +248,8 @@ class Options(usage.Options):
 	]
 
 
-def main():
+# Exclude from coverage as it's hard to unit test.
+def main():  # pragma: no cover
 	config = Options()
 	config.parseOptions()
 	privkey = open(config["privkey"]).read()

@@ -3,18 +3,19 @@ name = "remote-server"
 version = "0.1.0"
 description = "NVDA Remote Access remote relay server."
 readme = "README.md"
-requires-python = ">=3.13.3"
+requires-python = "~=3.13"
 dependencies = [
-    "pyopenssl>=25.1.0",
-    "service-identity>=24.2.0",
-    "twisted>=24.11.0",
+    "pyopenssl~=25.1",
+    "service-identity~=24.2",
+    "twisted~=24.11",
 ]
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.2.0",
-    "pyright>=1.1.401",
-    "ruff>=0.11.12",
+    "coverage~=7.8",
+    "pre-commit~=4.2",
+    "pyright~=1.1",
+    "ruff~=0.11",
 ]
 
 [tool.pyright]
@@ -38,20 +39,15 @@ exclude = [
 ]
 
 # General config
-analyzeUnannotatedFunctions = false
+analyzeUnannotatedFunctions = true
 deprecateTypingAliases = true
 
-reportMissingTypeArgument=false
-reportUnknownVariableType=false
-reportAttributeAccessIssue=false
-reportUnknownMemberType=false
-reportUnknownParameterType=false
-reportUnknownArgumentType=false
-reportMissingParameterType=false
-reportUnknownLambdaType=false
-reportUnusedVariable=false
-reportOptionalMemberAccess=false
-reportDeprecated=false
+# The following options cause problems due to polymorphism in Twisted
+reportAttributeAccessIssue = false
+reportUnknownMemberType = false
+reportOptionalMemberAccess = false
+# The following option causes problems due to dynamic member access
+reportUnknownArgumentType = false
 
 [tool.ruff]
 line-length = 110
@@ -77,4 +73,14 @@ max-complexity = 15
 ignore = [
 	# indentation contains tabs
 	"W191",
+]
+
+[tool.coverage.run]
+branch = true
+command_line = "-m twisted.trial ./test.py"
+
+[tool.coverage.report]
+fail_under = 100
+exclude_also = [
+    'if __name__ == .__main__.:',
 ]
