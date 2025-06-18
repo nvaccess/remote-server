@@ -14,17 +14,19 @@ This is currently only tested on Linux.
 
 ## Development
 
-This project uses [pre-commit](https://pre-commit.com/) hooks to help ensure code quality. These run automattically on pull requests, however it is still recommended to set them up locally.
+This project uses [pre-commit](https://pre-commit.com/) hooks to help ensure code quality.
+These run automatically on pull requests, however it is still recommended to set them up locally.
 
-```
+
+```sh
 uvx pre-commit install
 ```
 
 ## Docker
 
-~~~
+```sh
 docker-compose up --build
-~~~
+```
 
 
 This will expose the server on port 6837, the default.
