@@ -377,7 +377,7 @@ class TestP2P(BaseServerTestCase):
 	def test_sendNonDictMessage(self):
 		"""Test that sending a message that is not a JSON object fails."""
 		client = self._connectClient()
-		client.protocol.dataReceived(b'"Hello, world!\n"')
+		client.protocol.dataReceived(b'"Hello, world!"\n')
 		self.assertFalse(client.transport.value())
 		self.assertTrue(client.transport.disconnecting)
 
