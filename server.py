@@ -248,8 +248,7 @@ class Options(usage.Options):
 	]
 
 
-# Exclude from coverage as it's hard to test due to being multipurpose
-# TODO: Rewrite to make more modular
+# Exclude from coverage as it's hard to unit test.
 def main():  # pragma: no cover
 	config = Options()
 	config.parseOptions()
