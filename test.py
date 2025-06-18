@@ -41,20 +41,31 @@ def mockUser(id: int) -> mock.MagicMock:
 	)
 
 
-def MockHandler(protocol_version: int = 2) -> mock.MagicMock:
+def MockHandler(protocol_version: int = 2, serverState: ServerState | None = None) -> mock.MagicMock:
 	"""Return a MagicMock representing a Handler."""
 	return mock.MagicMock(
 		spec=Handler,
 		protocol_version=protocol_version,
+		factory=mockRemoteServerFactory(serverState=serverState or ServerState()),
 	)
 
 
 def mockChannel(key: str, clients: Iterable[User]) -> mock.MagicMock:
+	"""Return a MagicMock representing a Channel."""
 	return mock.MagicMock(
 		speck=Channel,
 		key=key,
 		clients={client.user_id: client for client in clients},
 	)
+
+
+def mockRemoteServerFactory(serverState: ServerState) -> mock.MagicMock:
+	"""Return a MagicMock representing a RemoteServerFactory."""
+	return mock.MagicMock(
+		spec=RemoteServerFactory,
+		server_state=serverState
+	)
+
 
 
 class TestChannel(unittest.TestCase):
@@ -139,6 +150,27 @@ class TestUser(unittest.TestCase):
 		"""Test that creating several users sequentially creates them with sequential user IDs."""
 		users = (User(mock.Mock(Handler)) for _ in range(10))
 		self.assertSequenceEqual(list(map(lambda user: user.user_id, users)), range(1, 11))
+
+	def test_join(self):
+		"""Test that adding a user to a channel works as expected."""
+		CHANNEL_ID = "myChannel"
+		serverState = ServerState()
+		user = User(MockHandler(serverState=serverState))
+		user.join(CHANNEL_ID, "master")
+		self.assertIs(user.channel, serverState.channels[CHANNEL_ID])
+		self.assertIs(user, serverState.channels[CHANNEL_ID].clients[user.user_id])
+	
+	def test_join_alreadyJoined(self):
+		"""Test that adding a user who is already in a channel to a new channel fails."""
+		protocol = MockHandler()
+		user = User(protocol)
+		oldChannel = mockChannel("channel1", [])
+		user.channel = oldChannel
+		user.join("channel2", "slave")
+		self.assertIs(user.channel, oldChannel)
+		protocol.send.assert_called_once_with(type="error", error="already_joined")
+		# user.join(CHANNEL_ID, "master")
+
 
 
 class TestServerState(unittest.TestCase):
