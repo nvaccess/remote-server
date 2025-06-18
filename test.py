@@ -38,6 +38,7 @@ def mockUser(id: int) -> mock.MagicMock:
 		spec=User,
 		user_id=id,
 		protocol=MockHandler(),
+		as_dict=lambda: dict(id=id, connection_type="dummy"),
 	)
 
 
@@ -94,12 +95,25 @@ class TestChannel(unittest.TestCase):
 		leavingUser = allUsers[1]
 		leftUsers = [user for user in allUsers if user is not leavingUser]
 		self.channel.clients.update({user.user_id: user for user in allUsers})
+		self.assertIs(self.channel.clients[leavingUser.user_id], leavingUser)
 		self.channel.remove_connection(leavingUser)
 		self.assertNotIn(leavingUser.user_id, self.channel.clients)
 		self.assertNotIn(leavingUser, self.channel.clients.values())
 		for leftUser in leftUsers:
 			leftUser.send.assert_called_once()
 			self.assertEqual(leftUser.send.call_args.kwargs["type"], "client_left")
+
+	def test_removeConnection_notJoined(self):
+		"""Test removing a client from a channel of which it isn't a member does nothing."""
+		memberUsers = [mockUser(id=id) for id in range(4)]
+		nonmemberUser = memberUsers.pop(2)
+		oldChannelClients = {user.user_id: user for user in memberUsers}
+		self.channel.clients.update(oldChannelClients)
+		self.channel.remove_connection(nonmemberUser)
+		# NOTE: The current implementation sends client_left messages to the remaining clients,
+		# even if the client wasn't in the channel to begin with.
+		# Sending these messages is already covered in another test.
+		# This behaviour cannot be changed, as implementations may rely on it.
 
 	def test_cleanup(self):
 		"""Test removing the last client removes the channel from the server state."""
