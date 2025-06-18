@@ -63,9 +63,8 @@ def mockRemoteServerFactory(serverState: ServerState) -> mock.MagicMock:
 	"""Return a MagicMock representing a RemoteServerFactory."""
 	return mock.MagicMock(
 		spec=RemoteServerFactory,
-		server_state=serverState
+		server_state=serverState,
 	)
-
 
 
 class TestChannel(unittest.TestCase):
@@ -159,7 +158,7 @@ class TestUser(unittest.TestCase):
 		user.join(CHANNEL_ID, "master")
 		self.assertIs(user.channel, serverState.channels[CHANNEL_ID])
 		self.assertIs(user, serverState.channels[CHANNEL_ID].clients[user.user_id])
-	
+
 	def test_join_alreadyJoined(self):
 		"""Test that adding a user who is already in a channel to a new channel fails."""
 		protocol = MockHandler()
@@ -169,8 +168,6 @@ class TestUser(unittest.TestCase):
 		user.join("channel2", "slave")
 		self.assertIs(user.channel, oldChannel)
 		protocol.send.assert_called_once_with(type="error", error="already_joined")
-		# user.join(CHANNEL_ID, "master")
-
 
 
 class TestServerState(unittest.TestCase):
@@ -444,3 +441,10 @@ class TestP2P(BaseServerTestCase):
 		self.assertFalse(client.transport.disconnecting)
 		self.clock.advance(INITIAL_TIMEOUT + 1)
 		self.assertTrue(client.transport.disconnecting)
+
+	def test_motd(self):
+		"""Test that the server sends the MOTD on connection, if set."""
+		MOTD = "Hello, world!"
+		self.state.motd = MOTD
+		client = self._createClient()
+		self.assertEqual(self._receive(client), dict(type="motd", motd=MOTD))
