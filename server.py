@@ -78,6 +78,8 @@ class Handler(LineReceiver):
 
 	def connectionMade(self):
 		logger.info("Connection %d from %s" % (self.connection_id, self.transport.getPeer()))
+		# We use a non-tcp transport for unit testing,
+		# which doesn't support setTcpNoDelay.
 		if isinstance(self.transport, ITCPTransport):  # pragma: no cover
 			self.transport.setTcpNoDelay(True)
 		self.bytes_sent = 0
