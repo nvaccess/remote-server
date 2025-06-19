@@ -300,7 +300,7 @@ class TestGenerateKey(BaseServerTestCase):
 		self.protocol, self.transport = self._connectClient()
 		random.seed(self.RANDOM_SEED)
 
-	def _test(self, serverReceived: bytes, clientReceived: bytes) -> None:
+	def _test(self, serverReceived: dict[str, Any], clientReceived: dict[str, Any]) -> None:
 		self.protocol.dataReceived(json.dumps(serverReceived).encode() + b"\n")
 		self.assertEqual(json.loads(self.transport.value().decode()), clientReceived)
 		self.transport.clear()
