@@ -201,7 +201,7 @@ class TestServerState(unittest.TestCase):
 		extantChannels = self._addChannels()
 		oldChannels = self.serverState.channels.copy()
 		self.assertNotIn("newChannel", self.serverState.channels)
-		newChannel = self.serverState.find_or_create_channel("newChannel")
+		newChannel = self.serverState.findOrCreateChannel("newChannel")
 		self.assertIn("newChannel", self.serverState.channels)
 		self.assertIs(self.serverState.channels["newChannel"], newChannel)
 		self.assertNotIn(newChannel, extantChannels)
@@ -213,7 +213,7 @@ class TestServerState(unittest.TestCase):
 		oldChannels = self.serverState.channels.copy()
 		self.assertIn("c", self.serverState.channels)
 		expectedChannel = extantChannels[2]
-		foundChannel = self.serverState.find_or_create_channel("c")
+		foundChannel = self.serverState.findOrCreateChannel("c")
 		self.assertIs(expectedChannel, foundChannel)
 		self.assertEqual(oldChannels, self.serverState.channels)
 
@@ -313,9 +313,9 @@ class TestGenerateKey(BaseServerTestCase):
 		"""Test that requesting the server to generate a key returns the expected result, and temporarily persists the key to avoid collisions."""
 		key = self.EXPECTED_KEYS[0]
 		self._test({"type": "generate_key"}, {"type": "generate_key", "key": key})
-		self.assertIn(key, self.state.generated_keys, "Key was not persisted where expected.")
+		self.assertIn(key, self.state.generatedKeys, "Key was not persisted where expected.")
 		self.clock.advance(GENERATED_KEY_EXPIRATION_TIME)
-		self.assertNotIn(key, self.state.generated_keys, "Key was not removed after expiration.")
+		self.assertNotIn(key, self.state.generatedKeys, "Key was not removed after expiration.")
 
 	@mock.patch("time.time", return_value=12345)
 	def test_repeated_generateKey_ok(self, mock_time: mock.MagicMock):

@@ -84,7 +84,7 @@ class Channel:
 			else:
 				client.send(type="client_left", client=con.asDict())
 		if not self.clients:
-			self.serverState.remove_channel(self.key)
+			self.serverState.removeChannel(self.key)
 
 	def pingClients(self) -> None:
 		"""Ping clients to ensure they're still connected."""
@@ -249,16 +249,16 @@ class User:
 		:postcondition: The key will be temporarily persisted so that future key generation requests don't result in duplicate keys.
 		"""
 		ip: str = self.protocol.transport.getPeer().host  # type: ignore
-		if ip in self.serverState.generated_ips and time.time() - self.serverState.generated_ips[ip] < 1:
+		if ip in self.serverState.generatedIps and time.time() - self.serverState.generatedIps[ip] < 1:
 			self.send(type="error", message="too many keys")
 			self.protocol.transport.loseConnection()
 			return
 		key = "".join([random.choice(string.digits) for _ in range(7)])
-		while key in self.serverState.generated_keys or key in self.serverState.channels.keys():
+		while key in self.serverState.generatedKeys or key in self.serverState.channels.keys():
 			key = "".join([random.choice(string.digits) for _ in range(7)])
-		self.serverState.generated_keys.add(key)
-		self.serverState.generated_ips[ip] = time.time()
-		reactor.callLater(GENERATED_KEY_EXPIRATION_TIME, lambda: self.serverState.generated_keys.remove(key))
+		self.serverState.generatedKeys.add(key)
+		self.serverState.generatedIps[ip] = time.time()
+		reactor.callLater(GENERATED_KEY_EXPIRATION_TIME, lambda: self.serverState.generatedKeys.remove(key))
 		if key:  # pragma: no cover - I can't work out why this branch is here. When would this be False?
 			self.send(type="generate_key", key=key)
 		return key
@@ -280,7 +280,7 @@ class User:
 			self.send(type="error", error="already_joined")
 			return
 		self.connectionType = connectionType
-		self.channel = self.serverState.find_or_create_channel(channel)
+		self.channel = self.serverState.findOrCreateChannel(channel)
 		self.channel.addClient(self)
 
 	# TODO: Work out if this is ever called.
@@ -322,19 +322,19 @@ class ServerState:
 	def __init__(self) -> None:
 		self.channels: dict[str, Channel] = {}
 		# Set of already generated keys
-		self.generated_keys: set[str] = set()
+		self.generatedKeys: set[str] = set()
 		# Mapping of IPs to generated time for people who have generated keys.
-		self.generated_ips: dict[str, float] = {}
+		self.generatedIps: dict[str, float] = {}
 		self.motd: str | None = None
 
-	def remove_channel(self, channel: str) -> None:
+	def removeChannel(self, channel: str) -> None:
 		"""Close a channel.
 
 		:param channel: Key of the channel to remove.
 		"""
 		del self.channels[channel]
 
-	def find_or_create_channel(self, name: str) -> Channel:
+	def findOrCreateChannel(self, name: str) -> Channel:
 		"""Find an existing channel, or create one if one doesn't already exist.
 
 		:param name: Key of the channel to find/create.
