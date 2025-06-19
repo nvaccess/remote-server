@@ -255,9 +255,13 @@ class BaseServerTestCase(unittest.TestCase):
 
 	def _createClient(self) -> Client:
 		"""Create a client-server connection."""
-		protocol = self.factory.buildProtocol(("127.0.0.1", 0))
+		# A (host, port) tuple works fine here.
+		# Even using twisted.internet.address.IPv4Address` here doesn't work,
+		# as pyright doesn't understand Zope interfaces.
+		protocol = self.factory.buildProtocol(("127.0.0.1", 0))  # pyright: ignore [reportArgumentType]
 		transport = StringTransport()
 		protocol.makeConnection(transport)
+		assert protocol is not None  # Needed to shut pyright up
 		return Client(protocol=protocol, transport=transport)
 
 	def _connectClient(self, protocolVersion: int = 2) -> Client:
