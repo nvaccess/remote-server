@@ -126,7 +126,8 @@ class Handler(LineReceiver):
 		# We use a non-tcp transport for unit testing,
 		# which doesn't support setTcpNoDelay.
 		if isinstance(self.transport, ITCPTransport):  # pragma: no cover
-			self.transport.setTcpNoDelay(True)
+			# Methods of Zope interfaces don't take self, so pyright thinks this call has too many arguments
+			self.transport.setTcpNoDelay(True)  # pyright: ignore [reportCallIssue]
 		self.bytes_sent = 0
 		self.bytes_received = 0
 		self.user = User(protocol=self)
@@ -345,6 +346,7 @@ class ServerState:
 			channel = Channel(name, self)
 			self.channels[name] = channel
 		return channel
+
 
 class Options(usage.Options):
 	optParameters = [
