@@ -81,7 +81,7 @@ class TestChannel(unittest.TestCase):
 		oldUsers = [mockUser(id=id) for id in range(3)]
 		self.channel.clients.update({user.user_id: user for user in oldUsers})
 		newUser = mockUser(id=4)
-		self.channel.add_client(newUser)
+		self.channel.addClient(newUser)
 		self.assertEqual(newUser, self.channel.clients[4])
 		newUser.send.assert_called_once()
 		self.assertEqual(newUser.send.call_args.kwargs["type"], "channel_joined")
@@ -96,7 +96,7 @@ class TestChannel(unittest.TestCase):
 		leftUsers = [user for user in allUsers if user is not leavingUser]
 		self.channel.clients.update({user.user_id: user for user in allUsers})
 		self.assertIs(self.channel.clients[leavingUser.user_id], leavingUser)
-		self.channel.remove_connection(leavingUser)
+		self.channel.removeConnection(leavingUser)
 		self.assertNotIn(leavingUser.user_id, self.channel.clients)
 		self.assertNotIn(leavingUser, self.channel.clients.values())
 		for leftUser in leftUsers:
@@ -109,7 +109,7 @@ class TestChannel(unittest.TestCase):
 		nonmemberUser = memberUsers.pop(2)
 		oldChannelClients = {user.user_id: user for user in memberUsers}
 		self.channel.clients.update(oldChannelClients)
-		self.channel.remove_connection(nonmemberUser)
+		self.channel.removeConnection(nonmemberUser)
 		# NOTE: The current implementation sends client_left messages to the remaining clients,
 		# even if the client wasn't in the channel to begin with.
 		# Sending these messages is already covered in another test.
@@ -118,15 +118,15 @@ class TestChannel(unittest.TestCase):
 	def test_cleanup(self):
 		"""Test removing the last client removes the channel from the server state."""
 		user = mockUser(id=1)
-		self.channel.add_client(user)
-		self.channel.remove_connection(user)
+		self.channel.addClient(user)
+		self.channel.removeConnection(user)
 		self.assertNotIn("channel", self.state.channels)
 
 	def test_sendToClients_all(self):
 		"""Test sending to all clients in the channel."""
 		users = [mockUser(id) for id in range(4)]
 		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.send_to_clients({"this": "is a message"}, origin=99)
+		self.channel.sendToClients({"this": "is a message"}, origin=99)
 		for user in users:
 			user.send.assert_called_once_with(this="is a message", origin=99)
 
@@ -134,7 +134,7 @@ class TestChannel(unittest.TestCase):
 		"""Test sending to all clients but one in the channel."""
 		users = [mockUser(id) for id in range(4)]
 		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.send_to_clients({"this": "is a message"}, origin=99, exclude=users[2])
+		self.channel.sendToClients({"this": "is a message"}, origin=99, exclude=users[2])
 		for user in users:
 			if user is users[2]:
 				user.send.assert_not_called()
@@ -145,7 +145,7 @@ class TestChannel(unittest.TestCase):
 		"""Test pinging the clients in the channel."""
 		users = [mockUser(id) for id in range(4)]
 		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.ping_clients()
+		self.channel.pingClients()
 		for user in users:
 			user.send.assert_called_once_with(type="ping", origin=None)
 
@@ -222,7 +222,7 @@ class TestRemoteServerFactory(unittest.TestCase):
 	"""Test the RemoteServerFactory class."""
 
 	def test_pingClients(self):
-		"""Test that calling ping_connected_clients calls ping_clients on all channels, regardless of size."""
+		"""Test that calling ping_connected_clients calls pingClients on all channels, regardless of size."""
 		serverState = ServerState()
 		factory = RemoteServerFactory(serverState)
 		userIterator = (mockUser(id) for id in range(10))
@@ -230,7 +230,7 @@ class TestRemoteServerFactory(unittest.TestCase):
 		serverState.channels.update({channel.key: channel for channel in channels})
 		factory.ping_connected_clients()
 		for channel in channels:
-			channel.ping_clients.assert_called_once()
+			channel.pingClients.assert_called_once()
 
 
 class BaseServerTestCase(unittest.TestCase):

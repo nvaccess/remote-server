@@ -42,7 +42,7 @@ class Message(TypedDict):
 class Channel:
 	"""Collection of connected users in the one "session"."""
 
-	def __init__(self, key: str, server_state: "ServerState | None" = None) -> None:
+	def __init__(self, key: str, serverState: "ServerState | None" = None) -> None:
 		"""Constructor
 
 		:param key: Unique identifier of this channel.
@@ -50,9 +50,9 @@ class Channel:
 		"""
 		self.clients: OrderedDict[int, User] = OrderedDict()
 		self.key = key
-		self.server_state = server_state
+		self.serverState = serverState
 
-	def add_client(self, client: "User") -> None:
+	def addClient(self, client: "User") -> None:
 		"""Joined when a new user wants to join the channel.
 
 		:param client: The new channel member.
@@ -64,14 +64,14 @@ class Channel:
 			clients = [i.as_dict() for i in self.clients.values()]
 			msg = dict(type="channel_joined", channel=self.key, origin=client.user_id, clients=clients)
 		client.send(**msg)
-		for existing_client in self.clients.values():
-			if existing_client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
-				existing_client.send(type="client_joined", user_id=client.user_id)
+		for existingClient in self.clients.values():
+			if existingClient.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
+				existingClient.send(type="client_joined", user_id=client.user_id)
 			else:
-				existing_client.send(type="client_joined", client=client.as_dict())
+				existingClient.send(type="client_joined", client=client.as_dict())
 		self.clients[client.user_id] = client
 
-	def remove_connection(self, con: "User") -> None:
+	def removeConnection(self, con: "User") -> None:
 		"""Called when a user leaves the channel.
 
 		:param con: The leaving channel member.
@@ -84,13 +84,13 @@ class Channel:
 			else:
 				client.send(type="client_left", client=con.as_dict())
 		if not self.clients:
-			self.server_state.remove_channel(self.key)
+			self.serverState.remove_channel(self.key)
 
-	def ping_clients(self) -> None:
+	def pingClients(self) -> None:
 		"""Ping clients to ensure they're still connected."""
-		self.send_to_clients({"type": "ping"})
+		self.sendToClients({"type": "ping"})
 
-	def send_to_clients(
+	def sendToClients(
 		self,
 		obj: dict[str, Any],
 		exclude: "User | None" = None,
@@ -168,7 +168,7 @@ class Handler(LineReceiver):
 			return
 		parsed.pop("origin", None)  # Remove an existing origin, we know where the message comes from.
 		if self.user.channel is not None:
-			self.user.channel.send_to_clients(parsed, exclude=self.user, origin=self.user.user_id)
+			self.user.channel.sendToClients(parsed, exclude=self.user, origin=self.user.user_id)
 			return
 		elif not hasattr(self, "do_" + parsed["type"]):
 			logger.warning("No function for type %s", parsed["type"])
@@ -268,7 +268,7 @@ class User:
 		if (
 			self.channel is not None
 		):  # pragma: no branch - we don't care about the alternative, as it's a no-op
-			self.channel.remove_connection(self)
+			self.channel.removeConnection(self)
 
 	def join(self, channel: str, connection_type: str) -> None:
 		"""Add this user to a channel.
@@ -281,7 +281,7 @@ class User:
 			return
 		self.connection_type = connection_type
 		self.channel = self.server_state.find_or_create_channel(channel)
-		self.channel.add_client(self)
+		self.channel.addClient(self)
 
 	# TODO: Work out if this is ever called.
 	def do_generate_key(self) -> None:  # pragma: no cover
@@ -313,7 +313,7 @@ class RemoteServerFactory(Factory):
 	def ping_connected_clients(self) -> None:
 		"""Ping all users in all channels to determine if they're still connected."""
 		for channel in self.server_state.channels.values():
-			channel.ping_clients()
+			channel.pingClients()
 
 
 class ServerState:
