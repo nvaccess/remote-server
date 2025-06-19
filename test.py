@@ -2,11 +2,11 @@ from collections.abc import Iterable
 from itertools import islice
 import json
 import random
-from typing import Any, Final, NamedTuple
+from typing import Any, Final, NamedTuple, cast
 from unittest import mock
 
 from twisted.internet import reactor
-from twisted.internet.protocol import Protocol, connectionDone
+from twisted.internet.protocol import connectionDone
 from twisted.internet.task import Clock
 from twisted.internet.testing import StringTransport
 from twisted.trial import unittest
@@ -25,7 +25,7 @@ from server import (
 class Client(NamedTuple):
 	"""Structure representing a client connection to the server."""
 
-	protocol: Protocol
+	protocol: Handler
 	"""Serverside protocol. Write to this to represent the client sending to the server."""
 
 	transport: StringTransport
@@ -36,17 +36,17 @@ def mockUser(id: int) -> mock.MagicMock:
 	"""Create a MagicMock representing a user."""
 	return mock.MagicMock(
 		spec=User,
-		user_id=id,
+		userId=id,
 		protocol=MockHandler(),
 		as_dict=lambda: dict(id=id, connection_type="dummy"),
 	)
 
 
-def MockHandler(protocol_version: int = 2, serverState: ServerState | None = None) -> mock.MagicMock:
+def MockHandler(protocolVersion: int = 2, serverState: ServerState | None = None) -> mock.MagicMock:
 	"""Return a MagicMock representing a Handler."""
 	return mock.MagicMock(
 		spec=Handler,
-		protocol_version=protocol_version,
+		protocolVersion=protocolVersion,
 		factory=mockRemoteServerFactory(serverState=serverState or ServerState()),
 	)
 
@@ -56,7 +56,7 @@ def mockChannel(key: str, clients: Iterable[User]) -> mock.MagicMock:
 	return mock.MagicMock(
 		speck=Channel,
 		key=key,
-		clients={client.user_id: client for client in clients},
+		clients={client.userId: client for client in clients},
 	)
 
 
@@ -64,7 +64,7 @@ def mockRemoteServerFactory(serverState: ServerState) -> mock.MagicMock:
 	"""Return a MagicMock representing a RemoteServerFactory."""
 	return mock.MagicMock(
 		spec=RemoteServerFactory,
-		server_state=serverState,
+		serverState=serverState,
 	)
 
 
@@ -79,9 +79,9 @@ class TestChannel(unittest.TestCase):
 	def test_addClient(self):
 		"""Test adding a client to a channel."""
 		oldUsers = [mockUser(id=id) for id in range(3)]
-		self.channel.clients.update({user.user_id: user for user in oldUsers})
+		self.channel.clients.update({user.userId: user for user in oldUsers})
 		newUser = mockUser(id=4)
-		self.channel.add_client(newUser)
+		self.channel.addClient(newUser)
 		self.assertEqual(newUser, self.channel.clients[4])
 		newUser.send.assert_called_once()
 		self.assertEqual(newUser.send.call_args.kwargs["type"], "channel_joined")
@@ -94,10 +94,10 @@ class TestChannel(unittest.TestCase):
 		allUsers = [mockUser(id=id) for id in range(4)]
 		leavingUser = allUsers[1]
 		leftUsers = [user for user in allUsers if user is not leavingUser]
-		self.channel.clients.update({user.user_id: user for user in allUsers})
-		self.assertIs(self.channel.clients[leavingUser.user_id], leavingUser)
-		self.channel.remove_connection(leavingUser)
-		self.assertNotIn(leavingUser.user_id, self.channel.clients)
+		self.channel.clients.update({user.userId: user for user in allUsers})
+		self.assertIs(self.channel.clients[leavingUser.userId], leavingUser)
+		self.channel.removeConnection(leavingUser)
+		self.assertNotIn(leavingUser.userId, self.channel.clients)
 		self.assertNotIn(leavingUser, self.channel.clients.values())
 		for leftUser in leftUsers:
 			leftUser.send.assert_called_once()
@@ -107,9 +107,9 @@ class TestChannel(unittest.TestCase):
 		"""Test removing a client from a channel of which it isn't a member does nothing."""
 		memberUsers = [mockUser(id=id) for id in range(4)]
 		nonmemberUser = memberUsers.pop(2)
-		oldChannelClients = {user.user_id: user for user in memberUsers}
+		oldChannelClients = {user.userId: user for user in memberUsers}
 		self.channel.clients.update(oldChannelClients)
-		self.channel.remove_connection(nonmemberUser)
+		self.channel.removeConnection(nonmemberUser)
 		# NOTE: The current implementation sends client_left messages to the remaining clients,
 		# even if the client wasn't in the channel to begin with.
 		# Sending these messages is already covered in another test.
@@ -118,23 +118,23 @@ class TestChannel(unittest.TestCase):
 	def test_cleanup(self):
 		"""Test removing the last client removes the channel from the server state."""
 		user = mockUser(id=1)
-		self.channel.add_client(user)
-		self.channel.remove_connection(user)
+		self.channel.addClient(user)
+		self.channel.removeConnection(user)
 		self.assertNotIn("channel", self.state.channels)
 
 	def test_sendToClients_all(self):
 		"""Test sending to all clients in the channel."""
 		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.send_to_clients({"this": "is a message"}, origin=99)
+		self.channel.clients.update({user.userId: user for user in users})
+		self.channel.sendToClients({"this": "is a message"}, origin=99)
 		for user in users:
 			user.send.assert_called_once_with(this="is a message", origin=99)
 
 	def test_sendToClients_except(self):
 		"""Test sending to all clients but one in the channel."""
 		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.send_to_clients({"this": "is a message"}, origin=99, exclude=users[2])
+		self.channel.clients.update({user.userId: user for user in users})
+		self.channel.sendToClients({"this": "is a message"}, origin=99, exclude=users[2])
 		for user in users:
 			if user is users[2]:
 				user.send.assert_not_called()
@@ -144,8 +144,8 @@ class TestChannel(unittest.TestCase):
 	def test_ping(self):
 		"""Test pinging the clients in the channel."""
 		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
-		self.channel.ping_clients()
+		self.channel.clients.update({user.userId: user for user in users})
+		self.channel.pingClients()
 		for user in users:
 			user.send.assert_called_once_with(type="ping", origin=None)
 
@@ -154,15 +154,15 @@ class TestUser(unittest.TestCase):
 	"""Test the User class."""
 
 	def setUp(self) -> None:
-		User.user_id = 0
+		User.userId = 0
 
 	def tearDown(self) -> None:
-		User.user_id = 0
+		User.userId = 0
 
 	def test_consecutiveUserCreation(self):
 		"""Test that creating several users sequentially creates them with sequential user IDs."""
 		users = (User(mock.Mock(Handler)) for _ in range(10))
-		self.assertSequenceEqual(list(map(lambda user: user.user_id, users)), range(1, 11))
+		self.assertSequenceEqual(list(map(lambda user: user.userId, users)), range(1, 11))
 
 	def test_join(self):
 		"""Test that adding a user to a channel works as expected."""
@@ -171,7 +171,7 @@ class TestUser(unittest.TestCase):
 		user = User(MockHandler(serverState=serverState))
 		user.join(CHANNEL_ID, "master")
 		self.assertIs(user.channel, serverState.channels[CHANNEL_ID])
-		self.assertIs(user, serverState.channels[CHANNEL_ID].clients[user.user_id])
+		self.assertIs(user, serverState.channels[CHANNEL_ID].clients[user.userId])
 
 	def test_join_alreadyJoined(self):
 		"""Test that adding a user who is already in a channel to a new channel fails."""
@@ -201,7 +201,7 @@ class TestServerState(unittest.TestCase):
 		extantChannels = self._addChannels()
 		oldChannels = self.serverState.channels.copy()
 		self.assertNotIn("newChannel", self.serverState.channels)
-		newChannel = self.serverState.find_or_create_channel("newChannel")
+		newChannel = self.serverState.findOrCreateChannel("newChannel")
 		self.assertIn("newChannel", self.serverState.channels)
 		self.assertIs(self.serverState.channels["newChannel"], newChannel)
 		self.assertNotIn(newChannel, extantChannels)
@@ -213,7 +213,7 @@ class TestServerState(unittest.TestCase):
 		oldChannels = self.serverState.channels.copy()
 		self.assertIn("c", self.serverState.channels)
 		expectedChannel = extantChannels[2]
-		foundChannel = self.serverState.find_or_create_channel("c")
+		foundChannel = self.serverState.findOrCreateChannel("c")
 		self.assertIs(expectedChannel, foundChannel)
 		self.assertEqual(oldChannels, self.serverState.channels)
 
@@ -222,15 +222,15 @@ class TestRemoteServerFactory(unittest.TestCase):
 	"""Test the RemoteServerFactory class."""
 
 	def test_pingClients(self):
-		"""Test that calling ping_connected_clients calls ping_clients on all channels, regardless of size."""
+		"""Test that calling ping_connected_clients calls pingClients on all channels, regardless of size."""
 		serverState = ServerState()
 		factory = RemoteServerFactory(serverState)
 		userIterator = (mockUser(id) for id in range(10))
 		channels = tuple(mockChannel(key=chr(n + 65), clients=islice(userIterator, n)) for n in range(5))
 		serverState.channels.update({channel.key: channel for channel in channels})
-		factory.ping_connected_clients()
+		factory.pingConnectedClients()
 		for channel in channels:
-			channel.ping_clients.assert_called_once()
+			channel.pingClients.assert_called_once()
 
 
 class BaseServerTestCase(unittest.TestCase):
@@ -241,8 +241,8 @@ class BaseServerTestCase(unittest.TestCase):
 
 	def setUp(self) -> None:
 		# Ensure we're starting from a common baseline
-		self._oldUserId = User.user_id
-		User.user_id = 0
+		self._oldUserId = User.userId
+		User.userId = 0
 		self.state = ServerState()
 		self.factory = RemoteServerFactory(self.state)
 		self.factory.protocol = Handler
@@ -251,14 +251,18 @@ class BaseServerTestCase(unittest.TestCase):
 
 	def tearDown(self) -> None:
 		# Put things back how they were when we found them
-		User.user_id = self._oldUserId
+		User.userId = self._oldUserId
 
 	def _createClient(self) -> Client:
 		"""Create a client-server connection."""
-		protocol = self.factory.buildProtocol(("127.0.0.1", 0))
+		# A (host, port) tuple works fine here.
+		# Even using twisted.internet.address.IPv4Address` here doesn't work,
+		# as pyright doesn't understand Zope interfaces.
+		protocol = self.factory.buildProtocol(("127.0.0.1", 0))  # pyright: ignore [reportArgumentType]
 		transport = StringTransport()
 		protocol.makeConnection(transport)
-		return Client(protocol=protocol, transport=transport)
+		assert protocol is not None  # Needed to shut pyright up
+		return Client(protocol=cast(Handler, protocol), transport=transport)
 
 	def _connectClient(self, protocolVersion: int = 2) -> Client:
 		"""Create and initialize a new connection."""
@@ -300,7 +304,7 @@ class TestGenerateKey(BaseServerTestCase):
 		self.protocol, self.transport = self._connectClient()
 		random.seed(self.RANDOM_SEED)
 
-	def _test(self, serverReceived: bytes, clientReceived: bytes) -> None:
+	def _test(self, serverReceived: dict[str, Any], clientReceived: dict[str, Any]) -> None:
 		self.protocol.dataReceived(json.dumps(serverReceived).encode() + b"\n")
 		self.assertEqual(json.loads(self.transport.value().decode()), clientReceived)
 		self.transport.clear()
@@ -309,9 +313,9 @@ class TestGenerateKey(BaseServerTestCase):
 		"""Test that requesting the server to generate a key returns the expected result, and temporarily persists the key to avoid collisions."""
 		key = self.EXPECTED_KEYS[0]
 		self._test({"type": "generate_key"}, {"type": "generate_key", "key": key})
-		self.assertIn(key, self.state.generated_keys, "Key was not persisted where expected.")
+		self.assertIn(key, self.state.generatedKeys, "Key was not persisted where expected.")
 		self.clock.advance(GENERATED_KEY_EXPIRATION_TIME)
-		self.assertNotIn(key, self.state.generated_keys, "Key was not removed after expiration.")
+		self.assertNotIn(key, self.state.generatedKeys, "Key was not removed after expiration.")
 
 	@mock.patch("time.time", return_value=12345)
 	def test_repeated_generateKey_ok(self, mock_time: mock.MagicMock):
@@ -444,10 +448,19 @@ class TestP2P(BaseServerTestCase):
 
 	def test_protocol_version_withoutVersion(self):
 		"""Test that sending a 'protocol_version' message without a 'version' returns nothing."""
-		client = self._connectClient()
-		# TODO: Work out how to find the associated Handler and check that its protocol version doesn't change.
+		client = self._createClient()
+		oldProtocolVersion = client.protocol.protocolVersion
 		self._send(client, {"type": "protocol_version"})
 		self.assertIsNone(self._receive(client))
+		self.assertEqual(client.protocol.protocolVersion, oldProtocolVersion)
+
+	def test_protocol_version_withInvalidVersion(self):
+		"""Test that sending a 'protocol_version' message with a non-integer 'version' returns nothing."""
+		client = self._createClient()
+		oldProtocolVersion = client.protocol.protocolVersion
+		self._send(client, {"type": "protocol_version", "version": "NaN"})
+		self.assertIsNone(self._receive(client))
+		self.assertEqual(client.protocol.protocolVersion, oldProtocolVersion)
 
 	def test_inactivityCausesDisconnection(self):
 		"""Test that connecting without joining a channel causes disconnection."""
