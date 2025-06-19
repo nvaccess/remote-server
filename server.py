@@ -27,14 +27,20 @@ GENERATED_KEY_EXPIRATION_TIME: int = 60 * 60 * 24  # One day
 
 
 class UserDict(TypedDict):
-	"""Typed dictionary representing a user."""
+	"""Typed dictionary representing a user.
+
+	Keys in this dictionary cannot be renamed, as clients rely on them.
+	"""
 
 	id: int
 	connection_type: str | None
 
 
 class Message(TypedDict):
-	"""Type hints for protocol messages."""
+	"""Type hints for protocol messages.
+
+	Keys in this dictionary cannot be renamed, as clients rely on them.
+	"""
 
 	type: str
 
@@ -46,7 +52,7 @@ class Channel:
 		"""Constructor
 
 		:param key: Unique identifier of this channel.
-		:param serverSstate: Server state, defaults to None
+		:param serverState: Server state, defaults to None
 		"""
 		self.clients: OrderedDict[int, User] = OrderedDict()
 		self.key = key
@@ -380,8 +386,8 @@ def main() -> Deferred[None]:  # pragma: no cover
 	)
 	# Initialise the server state machine
 	state = ServerState()
-	if os.path.exists(config["motd"]):
-		with open(config["motd"], encoding="utf-8") as fp:
+	if os.path.isfile(config["motd"]):
+		with open(config["motd"], "r", encoding="utf-8") as fp:
 			state.motd = fp.read().strip()
 	else:
 		state.motd = None
