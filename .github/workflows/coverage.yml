@@ -7,7 +7,7 @@ jobs:
     name: Check coverage with coverage.py
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: ./.github/actions/setup-environment
