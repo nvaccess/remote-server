@@ -57,7 +57,7 @@ class Channel:
 
 		:param client: The new channel member.
 		"""
-		if client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
+		if client.protocol.protocolVersion == 1:  # pragma: no cover - protocol v1 is not tested
 			ids = [c.user_id for c in self.clients.values()]
 			msg = dict(type="channel_joined", channel=self.key, user_ids=ids, origin=client.user_id)
 		else:
@@ -65,7 +65,7 @@ class Channel:
 			msg = dict(type="channel_joined", channel=self.key, origin=client.user_id, clients=clients)
 		client.send(**msg)
 		for existingClient in self.clients.values():
-			if existingClient.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
+			if existingClient.protocol.protocolVersion == 1:  # pragma: no cover - protocol v1 is not tested
 				existingClient.send(type="client_joined", user_id=client.user_id)
 			else:
 				existingClient.send(type="client_joined", client=client.as_dict())
@@ -79,7 +79,7 @@ class Channel:
 		if con.user_id in self.clients:
 			del self.clients[con.user_id]
 		for client in self.clients.values():
-			if client.protocol.protocol_version == 1:  # pragma: no cover - protocol v1 is not tested
+			if client.protocol.protocolVersion == 1:  # pragma: no cover - protocol v1 is not tested
 				client.send(type="client_left", user_id=con.user_id)
 			else:
 				client.send(type="client_left", client=con.as_dict())
@@ -112,48 +112,48 @@ class Handler(LineReceiver):
 	"""Handle sending and receiving messages."""
 
 	delimiter = b"\n"
-	connection_id = 0
+	connectionId = 0
 	MAX_LENGTH = 20 * 1048576
 
 	def __init__(self) -> None:
-		self.connection_id = Handler.connection_id + 1
-		Handler.connection_id += 1
-		self.protocol_version = 1
+		self.connectionId = Handler.connectionId + 1
+		Handler.connectionId += 1
+		self.protocolVersion = 1
 
 	def connectionMade(self) -> None:
 		"""Called when a user first connects."""
-		logger.info("Connection %d from %s", self.connection_id, self.transport.getPeer())
+		logger.info("Connection %d from %s", self.connectionId, self.transport.getPeer())
 		# We use a non-tcp transport for unit testing,
 		# which doesn't support setTcpNoDelay.
 		if isinstance(self.transport, ITCPTransport):  # pragma: no cover
 			# Methods of Zope interfaces don't take self, so pyright thinks this call has too many arguments
 			self.transport.setTcpNoDelay(True)  # pyright: ignore [reportCallIssue]
-		self.bytes_sent = 0
-		self.bytes_received = 0
+		self.bytesSent = 0
+		self.bytesReceived = 0
 		self.user = User(protocol=self)
-		self.cleanup_timer = reactor.callLater(INITIAL_TIMEOUT, self.cleanup)
+		self.cleanupTimer = reactor.callLater(INITIAL_TIMEOUT, self.cleanup)
 		self.user.send_motd()
 
 	def connectionLost(self, reason: Failure = connectionDone) -> None:
 		"""Called when the connection is dropped."""
 		logger.info(
 			"Connection %d lost, bytes sent: %d received: %d",
-			self.connection_id,
-			self.bytes_sent,
-			self.bytes_received,
+			self.connectionId,
+			self.bytesSent,
+			self.bytesReceived,
 		)
 		self.user.connection_lost()
 		if (
-			self.cleanup_timer is not None and not self.cleanup_timer.cancelled
+			self.cleanupTimer is not None and not self.cleanupTimer.cancelled
 		):  # pragma: no cover - not sure how to trigger this
-			self.cleanup_timer.cancel()
+			self.cleanupTimer.cancel()
 
 	def lineReceived(self, line: bytes) -> None:
 		"""Called when a new line (a command) has been received.
 
 		:param line: The incoming line.
 		"""
-		self.bytes_received += len(line)
+		self.bytesReceived += len(line)
 		try:
 			parsed = json.loads(line)
 			if not isinstance(parsed, dict):
@@ -186,7 +186,7 @@ class Handler(LineReceiver):
 			self.send(type="error", error="invalid_parameters")
 			return
 		self.user.join(obj["channel"], connection_type=obj["connection_type"])
-		self.cleanup_timer.cancel()
+		self.cleanupTimer.cancel()
 
 	def do_protocol_version(self, obj: dict[str, int | str]) -> None:
 		"""Called when a "protocol_version" message is received."""
@@ -194,7 +194,7 @@ class Handler(LineReceiver):
 		if "version" not in obj:
 			return
 		try:
-			self.protocol_version = int(obj["version"])
+			self.protocolVersion = int(obj["version"])
 		except ValueError:
 			return
 
@@ -207,17 +207,17 @@ class Handler(LineReceiver):
 
 		:param origin: Originating user of the message, defaults to None
 		"""
-		if self.protocol_version > 1 and origin:
+		if self.protocolVersion > 1 and origin:
 			msg["origin"] = origin
 		obj = json.dumps(msg).encode("ascii")
-		self.bytes_sent += len(obj)
+		self.bytesSent += len(obj)
 		self.sendLine(obj)
 
 	def cleanup(self) -> None:
 		"""Clean up this connection."""
-		logger.info("Connection %d timed out", self.connection_id)
+		logger.info("Connection %d timed out", self.connectionId)
 		self.transport.abortConnection()
-		self.cleanup_timer = None
+		self.cleanupTimer = None
 
 
 class User:

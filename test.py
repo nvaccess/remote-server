@@ -42,11 +42,11 @@ def mockUser(id: int) -> mock.MagicMock:
 	)
 
 
-def MockHandler(protocol_version: int = 2, serverState: ServerState | None = None) -> mock.MagicMock:
+def MockHandler(protocolVersion: int = 2, serverState: ServerState | None = None) -> mock.MagicMock:
 	"""Return a MagicMock representing a Handler."""
 	return mock.MagicMock(
 		spec=Handler,
-		protocol_version=protocol_version,
+		protocolVersion=protocolVersion,
 		factory=mockRemoteServerFactory(serverState=serverState or ServerState()),
 	)
 
@@ -449,18 +449,18 @@ class TestP2P(BaseServerTestCase):
 	def test_protocol_version_withoutVersion(self):
 		"""Test that sending a 'protocol_version' message without a 'version' returns nothing."""
 		client = self._createClient()
-		oldProtocolVersion = client.protocol.protocol_version
+		oldProtocolVersion = client.protocol.protocolVersion
 		self._send(client, {"type": "protocol_version"})
 		self.assertIsNone(self._receive(client))
-		self.assertEqual(client.protocol.protocol_version, oldProtocolVersion)
+		self.assertEqual(client.protocol.protocolVersion, oldProtocolVersion)
 
 	def test_protocol_version_withInvalidVersion(self):
 		"""Test that sending a 'protocol_version' message with a non-integer 'version' returns nothing."""
 		client = self._createClient()
-		oldProtocolVersion = client.protocol.protocol_version
+		oldProtocolVersion = client.protocol.protocolVersion
 		self._send(client, {"type": "protocol_version", "version": "NaN"})
 		self.assertIsNone(self._receive(client))
-		self.assertEqual(client.protocol.protocol_version, oldProtocolVersion)
+		self.assertEqual(client.protocol.protocolVersion, oldProtocolVersion)
 
 	def test_inactivityCausesDisconnection(self):
 		"""Test that connecting without joining a channel causes disconnection."""
