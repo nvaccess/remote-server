@@ -17,4 +17,4 @@ jobs:
       - uses: actions/checkout@v4.2.2
       - uses: ./.github/actions/setup-environment
       - name: Run pyright
-        run: uv run pyright
+        run: uv run pyright >> $GITHUB_STEP_SUMMARY
