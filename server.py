@@ -58,31 +58,31 @@ class Channel:
 		:param client: The new channel member.
 		"""
 		if client.protocol.protocolVersion == 1:  # pragma: no cover - protocol v1 is not tested
-			ids = [c.user_id for c in self.clients.values()]
-			msg = dict(type="channel_joined", channel=self.key, user_ids=ids, origin=client.user_id)
+			ids = [c.userId for c in self.clients.values()]
+			msg = dict(type="channel_joined", channel=self.key, user_ids=ids, origin=client.userId)
 		else:
-			clients = [i.as_dict() for i in self.clients.values()]
-			msg = dict(type="channel_joined", channel=self.key, origin=client.user_id, clients=clients)
+			clients = [i.asDict() for i in self.clients.values()]
+			msg = dict(type="channel_joined", channel=self.key, origin=client.userId, clients=clients)
 		client.send(**msg)
 		for existingClient in self.clients.values():
 			if existingClient.protocol.protocolVersion == 1:  # pragma: no cover - protocol v1 is not tested
-				existingClient.send(type="client_joined", user_id=client.user_id)
+				existingClient.send(type="client_joined", user_id=client.userId)
 			else:
-				existingClient.send(type="client_joined", client=client.as_dict())
-		self.clients[client.user_id] = client
+				existingClient.send(type="client_joined", client=client.asDict())
+		self.clients[client.userId] = client
 
 	def removeConnection(self, con: "User") -> None:
 		"""Called when a user leaves the channel.
 
 		:param con: The leaving channel member.
 		"""
-		if con.user_id in self.clients:
-			del self.clients[con.user_id]
+		if con.userId in self.clients:
+			del self.clients[con.userId]
 		for client in self.clients.values():
 			if client.protocol.protocolVersion == 1:  # pragma: no cover - protocol v1 is not tested
-				client.send(type="client_left", user_id=con.user_id)
+				client.send(type="client_left", user_id=con.userId)
 			else:
-				client.send(type="client_left", client=con.as_dict())
+				client.send(type="client_left", client=con.asDict())
 		if not self.clients:
 			self.serverState.remove_channel(self.key)
 
@@ -132,7 +132,7 @@ class Handler(LineReceiver):
 		self.bytesReceived = 0
 		self.user = User(protocol=self)
 		self.cleanupTimer = reactor.callLater(INITIAL_TIMEOUT, self.cleanup)
-		self.user.send_motd()
+		self.user.sendMotd()
 
 	def connectionLost(self, reason: Failure = connectionDone) -> None:
 		"""Called when the connection is dropped."""
@@ -142,7 +142,7 @@ class Handler(LineReceiver):
 			self.bytesSent,
 			self.bytesReceived,
 		)
-		self.user.connection_lost()
+		self.user.connectionLost()
 		if (
 			self.cleanupTimer is not None and not self.cleanupTimer.cancelled
 		):  # pragma: no cover - not sure how to trigger this
@@ -168,7 +168,7 @@ class Handler(LineReceiver):
 			return
 		parsed.pop("origin", None)  # Remove an existing origin, we know where the message comes from.
 		if self.user.channel is not None:
-			self.user.channel.sendToClients(parsed, exclude=self.user, origin=self.user.user_id)
+			self.user.channel.sendToClients(parsed, exclude=self.user, origin=self.user.userId)
 			return
 		elif not hasattr(self, "do_" + parsed["type"]):
 			logger.warning("No function for type %s", parsed["type"])
@@ -185,7 +185,7 @@ class Handler(LineReceiver):
 		):
 			self.send(type="error", error="invalid_parameters")
 			return
-		self.user.join(obj["channel"], connection_type=obj["connection_type"])
+		self.user.join(obj["channel"], connectionType=obj["connection_type"])
 		self.cleanupTimer.cancel()
 
 	def do_protocol_version(self, obj: dict[str, int | str]) -> None:
@@ -200,7 +200,7 @@ class Handler(LineReceiver):
 
 	def do_generate_key(self, obj: dict[str, str]) -> None:
 		"""Called when a "generate_key" message is received."""
-		self.user.generate_key()
+		self.user.generateKey()
 
 	def send(self, origin: int | None = None, **msg: Any) -> None:
 		"""Send a message.
@@ -223,7 +223,7 @@ class Handler(LineReceiver):
 class User:
 	"""A single connected user."""
 
-	user_id = 0
+	userId = 0
 
 	def __init__(self, protocol: Handler) -> None:
 		"""Initializer.
@@ -232,16 +232,16 @@ class User:
 		"""
 		self.protocol = protocol
 		self.channel: Channel | None = None
-		self.server_state: ServerState = self.protocol.factory.server_state
-		self.connection_type = None
-		self.user_id = User.user_id + 1
-		User.user_id += 1
+		self.serverState: ServerState = self.protocol.factory.server_state
+		self.connectionType = None
+		self.userId = User.userId + 1
+		User.userId += 1
 
-	def as_dict(self) -> UserDict:
+	def asDict(self) -> UserDict:
 		"""Get a representation of this user suitable for sending over the wire."""
-		return UserDict(id=self.user_id, connection_type=self.connection_type)
+		return UserDict(id=self.userId, connection_type=self.connectionType)
 
-	def generate_key(self) -> str | None:
+	def generateKey(self) -> str | None:
 		"""Generate a key for the user.
 
 		:return: A channel key, or None if too many keys have been requested.
@@ -249,28 +249,28 @@ class User:
 		:postcondition: The key will be temporarily persisted so that future key generation requests don't result in duplicate keys.
 		"""
 		ip: str = self.protocol.transport.getPeer().host  # type: ignore
-		if ip in self.server_state.generated_ips and time.time() - self.server_state.generated_ips[ip] < 1:
+		if ip in self.serverState.generated_ips and time.time() - self.serverState.generated_ips[ip] < 1:
 			self.send(type="error", message="too many keys")
 			self.protocol.transport.loseConnection()
 			return
 		key = "".join([random.choice(string.digits) for _ in range(7)])
-		while key in self.server_state.generated_keys or key in self.server_state.channels.keys():
+		while key in self.serverState.generated_keys or key in self.serverState.channels.keys():
 			key = "".join([random.choice(string.digits) for _ in range(7)])
-		self.server_state.generated_keys.add(key)
-		self.server_state.generated_ips[ip] = time.time()
-		reactor.callLater(GENERATED_KEY_EXPIRATION_TIME, lambda: self.server_state.generated_keys.remove(key))
+		self.serverState.generated_keys.add(key)
+		self.serverState.generated_ips[ip] = time.time()
+		reactor.callLater(GENERATED_KEY_EXPIRATION_TIME, lambda: self.serverState.generated_keys.remove(key))
 		if key:  # pragma: no cover - I can't work out why this branch is here. When would this be False?
 			self.send(type="generate_key", key=key)
 		return key
 
-	def connection_lost(self) -> None:
+	def connectionLost(self) -> None:
 		"""Remove this user when they disconnect."""
 		if (
 			self.channel is not None
 		):  # pragma: no branch - we don't care about the alternative, as it's a no-op
 			self.channel.removeConnection(self)
 
-	def join(self, channel: str, connection_type: str) -> None:
+	def join(self, channel: str, connectionType: str) -> None:
 		"""Add this user to a channel.
 
 		:param channel: Key of the channel to join. If no channel with this key exists, a new channel will be created.
@@ -279,14 +279,14 @@ class User:
 		if self.channel:
 			self.send(type="error", error="already_joined")
 			return
-		self.connection_type = connection_type
-		self.channel = self.server_state.find_or_create_channel(channel)
+		self.connectionType = connectionType
+		self.channel = self.serverState.find_or_create_channel(channel)
 		self.channel.addClient(self)
 
 	# TODO: Work out if this is ever called.
 	def do_generate_key(self) -> None:  # pragma: no cover
 		"""Not sure what calls this?"""
-		key = self.generate_key()
+		key = self.generateKey()
 		if key:
 			self.send(type="generate_key", key=key)
 
@@ -294,10 +294,10 @@ class User:
 		"""Send a message to this user."""
 		self.protocol.send(**obj)
 
-	def send_motd(self) -> None:
+	def sendMotd(self) -> None:
 		"""Send the message of the day to this user."""
-		if self.server_state.motd is not None:
-			self.send(type="motd", motd=self.server_state.motd)
+		if self.serverState.motd is not None:
+			self.send(type="motd", motd=self.serverState.motd)
 
 
 class RemoteServerFactory(Factory):

@@ -36,7 +36,7 @@ def mockUser(id: int) -> mock.MagicMock:
 	"""Create a MagicMock representing a user."""
 	return mock.MagicMock(
 		spec=User,
-		user_id=id,
+		userId=id,
 		protocol=MockHandler(),
 		as_dict=lambda: dict(id=id, connection_type="dummy"),
 	)
@@ -56,7 +56,7 @@ def mockChannel(key: str, clients: Iterable[User]) -> mock.MagicMock:
 	return mock.MagicMock(
 		speck=Channel,
 		key=key,
-		clients={client.user_id: client for client in clients},
+		clients={client.userId: client for client in clients},
 	)
 
 
@@ -79,7 +79,7 @@ class TestChannel(unittest.TestCase):
 	def test_addClient(self):
 		"""Test adding a client to a channel."""
 		oldUsers = [mockUser(id=id) for id in range(3)]
-		self.channel.clients.update({user.user_id: user for user in oldUsers})
+		self.channel.clients.update({user.userId: user for user in oldUsers})
 		newUser = mockUser(id=4)
 		self.channel.addClient(newUser)
 		self.assertEqual(newUser, self.channel.clients[4])
@@ -94,10 +94,10 @@ class TestChannel(unittest.TestCase):
 		allUsers = [mockUser(id=id) for id in range(4)]
 		leavingUser = allUsers[1]
 		leftUsers = [user for user in allUsers if user is not leavingUser]
-		self.channel.clients.update({user.user_id: user for user in allUsers})
-		self.assertIs(self.channel.clients[leavingUser.user_id], leavingUser)
+		self.channel.clients.update({user.userId: user for user in allUsers})
+		self.assertIs(self.channel.clients[leavingUser.userId], leavingUser)
 		self.channel.removeConnection(leavingUser)
-		self.assertNotIn(leavingUser.user_id, self.channel.clients)
+		self.assertNotIn(leavingUser.userId, self.channel.clients)
 		self.assertNotIn(leavingUser, self.channel.clients.values())
 		for leftUser in leftUsers:
 			leftUser.send.assert_called_once()
@@ -107,7 +107,7 @@ class TestChannel(unittest.TestCase):
 		"""Test removing a client from a channel of which it isn't a member does nothing."""
 		memberUsers = [mockUser(id=id) for id in range(4)]
 		nonmemberUser = memberUsers.pop(2)
-		oldChannelClients = {user.user_id: user for user in memberUsers}
+		oldChannelClients = {user.userId: user for user in memberUsers}
 		self.channel.clients.update(oldChannelClients)
 		self.channel.removeConnection(nonmemberUser)
 		# NOTE: The current implementation sends client_left messages to the remaining clients,
@@ -125,7 +125,7 @@ class TestChannel(unittest.TestCase):
 	def test_sendToClients_all(self):
 		"""Test sending to all clients in the channel."""
 		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.clients.update({user.userId: user for user in users})
 		self.channel.sendToClients({"this": "is a message"}, origin=99)
 		for user in users:
 			user.send.assert_called_once_with(this="is a message", origin=99)
@@ -133,7 +133,7 @@ class TestChannel(unittest.TestCase):
 	def test_sendToClients_except(self):
 		"""Test sending to all clients but one in the channel."""
 		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.clients.update({user.userId: user for user in users})
 		self.channel.sendToClients({"this": "is a message"}, origin=99, exclude=users[2])
 		for user in users:
 			if user is users[2]:
@@ -144,7 +144,7 @@ class TestChannel(unittest.TestCase):
 	def test_ping(self):
 		"""Test pinging the clients in the channel."""
 		users = [mockUser(id) for id in range(4)]
-		self.channel.clients.update({user.user_id: user for user in users})
+		self.channel.clients.update({user.userId: user for user in users})
 		self.channel.pingClients()
 		for user in users:
 			user.send.assert_called_once_with(type="ping", origin=None)
@@ -154,15 +154,15 @@ class TestUser(unittest.TestCase):
 	"""Test the User class."""
 
 	def setUp(self) -> None:
-		User.user_id = 0
+		User.userId = 0
 
 	def tearDown(self) -> None:
-		User.user_id = 0
+		User.userId = 0
 
 	def test_consecutiveUserCreation(self):
 		"""Test that creating several users sequentially creates them with sequential user IDs."""
 		users = (User(mock.Mock(Handler)) for _ in range(10))
-		self.assertSequenceEqual(list(map(lambda user: user.user_id, users)), range(1, 11))
+		self.assertSequenceEqual(list(map(lambda user: user.userId, users)), range(1, 11))
 
 	def test_join(self):
 		"""Test that adding a user to a channel works as expected."""
@@ -171,7 +171,7 @@ class TestUser(unittest.TestCase):
 		user = User(MockHandler(serverState=serverState))
 		user.join(CHANNEL_ID, "master")
 		self.assertIs(user.channel, serverState.channels[CHANNEL_ID])
-		self.assertIs(user, serverState.channels[CHANNEL_ID].clients[user.user_id])
+		self.assertIs(user, serverState.channels[CHANNEL_ID].clients[user.userId])
 
 	def test_join_alreadyJoined(self):
 		"""Test that adding a user who is already in a channel to a new channel fails."""
@@ -241,8 +241,8 @@ class BaseServerTestCase(unittest.TestCase):
 
 	def setUp(self) -> None:
 		# Ensure we're starting from a common baseline
-		self._oldUserId = User.user_id
-		User.user_id = 0
+		self._oldUserId = User.userId
+		User.userId = 0
 		self.state = ServerState()
 		self.factory = RemoteServerFactory(self.state)
 		self.factory.protocol = Handler
@@ -251,7 +251,7 @@ class BaseServerTestCase(unittest.TestCase):
 
 	def tearDown(self) -> None:
 		# Put things back how they were when we found them
-		User.user_id = self._oldUserId
+		User.userId = self._oldUserId
 
 	def _createClient(self) -> Client:
 		"""Create a client-server connection."""
