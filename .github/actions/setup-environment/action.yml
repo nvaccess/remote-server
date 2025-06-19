@@ -1,0 +1,10 @@
+name: 'Setup CI Environment'
+description: 'Setup the environment in which CI scripts for the NVDA Remote Access server can be run'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@v6.1.0
+    - name: Setup environment
+      run: uv sync --dev
