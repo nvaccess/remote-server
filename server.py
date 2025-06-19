@@ -274,7 +274,7 @@ class User:
 		"""Add this user to a channel.
 
 		:param channel: Key of the channel to join. If no channel with this key exists, a new channel will be created.
-		:param connection_type: Leader ("master") or follower ("slave").
+		:param connectionType: Leader ("master") or follower ("slave").
 		"""
 		if self.channel:
 			self.send(type="error", error="already_joined")
@@ -373,7 +373,7 @@ def main() -> Deferred[None]:  # pragma: no cover
 	privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, privkey)
 	certificate = crypto.load_certificate(crypto.FILETYPE_PEM, certData)
 	chain = crypto.load_certificate(crypto.FILETYPE_PEM, chain)
-	context_factory = ssl.CertificateOptions(
+	contextFactory = ssl.CertificateOptions(
 		privateKey=privkey,
 		certificate=certificate,
 		extraCertChain=[chain],
@@ -391,7 +391,7 @@ def main() -> Deferred[None]:  # pragma: no cover
 	looper.start(PING_INTERVAL)
 	factory.protocol = Handler
 	# Start running the server.
-	reactor.listenSSL(int(config["port"]), factory, context_factory, interface=config["network-interface"])
+	reactor.listenSSL(int(config["port"]), factory, contextFactory, interface=config["network-interface"])
 	reactor.run()
 	return defer.Deferred()
 
