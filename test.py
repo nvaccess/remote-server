@@ -64,7 +64,7 @@ def mockRemoteServerFactory(serverState: ServerState) -> mock.MagicMock:
 	"""Return a MagicMock representing a RemoteServerFactory."""
 	return mock.MagicMock(
 		spec=RemoteServerFactory,
-		server_state=serverState,
+		serverState=serverState,
 	)
 
 
@@ -228,7 +228,7 @@ class TestRemoteServerFactory(unittest.TestCase):
 		userIterator = (mockUser(id) for id in range(10))
 		channels = tuple(mockChannel(key=chr(n + 65), clients=islice(userIterator, n)) for n in range(5))
 		serverState.channels.update({channel.key: channel for channel in channels})
-		factory.ping_connected_clients()
+		factory.pingConnectedClients()
 		for channel in channels:
 			channel.pingClients.assert_called_once()
 

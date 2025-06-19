@@ -46,7 +46,7 @@ class Channel:
 		"""Constructor
 
 		:param key: Unique identifier of this channel.
-		:param server_state: Server state, defaults to None
+		:param serverSstate: Server state, defaults to None
 		"""
 		self.clients: OrderedDict[int, User] = OrderedDict()
 		self.key = key
@@ -232,7 +232,7 @@ class User:
 		"""
 		self.protocol = protocol
 		self.channel: Channel | None = None
-		self.serverState: ServerState = self.protocol.factory.server_state
+		self.serverState: ServerState = self.protocol.factory.serverState
 		self.connectionType = None
 		self.userId = User.userId + 1
 		User.userId += 1
@@ -303,16 +303,16 @@ class User:
 class RemoteServerFactory(Factory):
 	"""Factory to add common functionality to connections."""
 
-	def __init__(self, server_state: "ServerState") -> None:
+	def __init__(self, serverState: "ServerState") -> None:
 		"""Initializer.
 
-		:param server_state: Status tracking object.
+		:param serverState: Status tracking object.
 		"""
-		self.server_state = server_state
+		self.serverState = serverState
 
-	def ping_connected_clients(self) -> None:
+	def pingConnectedClients(self) -> None:
 		"""Ping all users in all channels to determine if they're still connected."""
-		for channel in self.server_state.channels.values():
+		for channel in self.serverState.channels.values():
 			channel.pingClients()
 
 
@@ -387,7 +387,7 @@ def main() -> Deferred[None]:  # pragma: no cover
 		state.motd = None
 	# Set up the machinery of the server.
 	factory = RemoteServerFactory(state)
-	looper = LoopingCall(factory.ping_connected_clients)
+	looper = LoopingCall(factory.pingConnectedClients)
 	looper.start(PING_INTERVAL)
 	factory.protocol = Handler
 	# Start running the server.
