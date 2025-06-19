@@ -15,9 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6.1.0
-      - name: Setup environment
-        run: uv sync --dev
+      - uses: ./.github/actions/setup-environment
       - name: Run pyright
         run: uv run pyright
