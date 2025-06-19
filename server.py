@@ -43,7 +43,7 @@ class Channel:
 	"""Collection of connected users in the one "session"."""
 
 	def __init__(self, key: str, server_state: "ServerState | None" = None) -> None:
-		"""_summary_
+		"""Constructor
 
 		:param key: Unique identifier of this channel.
 		:param server_state: Server state, defaults to None

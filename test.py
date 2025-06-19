@@ -2,11 +2,11 @@ from collections.abc import Iterable
 from itertools import islice
 import json
 import random
-from typing import Any, Final, NamedTuple
+from typing import Any, Final, NamedTuple, cast
 from unittest import mock
 
 from twisted.internet import reactor
-from twisted.internet.protocol import Protocol, connectionDone
+from twisted.internet.protocol import connectionDone
 from twisted.internet.task import Clock
 from twisted.internet.testing import StringTransport
 from twisted.trial import unittest
@@ -25,7 +25,7 @@ from server import (
 class Client(NamedTuple):
 	"""Structure representing a client connection to the server."""
 
-	protocol: Protocol
+	protocol: Handler
 	"""Serverside protocol. Write to this to represent the client sending to the server."""
 
 	transport: StringTransport
@@ -262,7 +262,7 @@ class BaseServerTestCase(unittest.TestCase):
 		transport = StringTransport()
 		protocol.makeConnection(transport)
 		assert protocol is not None  # Needed to shut pyright up
-		return Client(protocol=protocol, transport=transport)
+		return Client(protocol=cast(Handler, protocol), transport=transport)
 
 	def _connectClient(self, protocolVersion: int = 2) -> Client:
 		"""Create and initialize a new connection."""
@@ -448,10 +448,19 @@ class TestP2P(BaseServerTestCase):
 
 	def test_protocol_version_withoutVersion(self):
 		"""Test that sending a 'protocol_version' message without a 'version' returns nothing."""
-		client = self._connectClient()
-		# TODO: Work out how to find the associated Handler and check that its protocol version doesn't change.
+		client = self._createClient()
+		oldProtocolVersion = client.protocol.protocol_version
 		self._send(client, {"type": "protocol_version"})
 		self.assertIsNone(self._receive(client))
+		self.assertEqual(client.protocol.protocol_version, oldProtocolVersion)
+
+	def test_protocol_version_withInvalidVersion(self):
+		"""Test that sending a 'protocol_version' message with a non-integer 'version' returns nothing."""
+		client = self._createClient()
+		oldProtocolVersion = client.protocol.protocol_version
+		self._send(client, {"type": "protocol_version", "version": "NaN"})
+		self.assertIsNone(self._receive(client))
+		self.assertEqual(client.protocol.protocol_version, oldProtocolVersion)
 
 	def test_inactivityCausesDisconnection(self):
 		"""Test that connecting without joining a channel causes disconnection."""
