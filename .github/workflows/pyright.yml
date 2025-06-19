@@ -13,6 +13,7 @@ jobs:
   pyright:
     name: Check types with pyright
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: ./.github/actions/setup-environment
