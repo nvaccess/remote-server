@@ -49,6 +49,7 @@ reportOptionalMemberAccess = false
 # The following option causes problems due to dynamic member access
 reportUnknownArgumentType = false
 
+
 [tool.ruff]
 line-length = 110
 

@@ -1,0 +1,21 @@
+name: Check types with Pyright
+
+on:
+  push:
+    branches:
+    - main
+
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  pyright:
+    name: Check types with pyright
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: ./.github/actions/setup-environment
+      - name: Run pyright
+        run: uv run pyright >> $GITHUB_STEP_SUMMARY
