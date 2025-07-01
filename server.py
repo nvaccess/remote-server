@@ -6,18 +6,18 @@ import sys
 import time
 from collections import OrderedDict
 from logging import getLogger
+from typing import Any, TypedDict, cast
 
 from OpenSSL import crypto
 from twisted.internet import reactor, ssl
+from twisted.internet.defer import Deferred
 from twisted.internet.interfaces import ITCPTransport
-from twisted.internet.protocol import Factory, defer, connectionDone
+from twisted.internet.protocol import Factory, connectionDone, defer
 from twisted.internet.task import LoopingCall
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.haproxy._wrapper import HAProxyWrappingFactory
 from twisted.python import log, usage
-from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
-from typing import Any, TypedDict, cast
 
 logger = getLogger("remote-server")
 
