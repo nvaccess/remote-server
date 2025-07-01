@@ -371,6 +371,7 @@ class Options(usage.Options):
 
 # Exclude from coverage as it's hard to unit test.
 def main() -> Deferred[None]:  # pragma: no cover
+	sslContext: ssl.CertificateOptions | None = None
 	# Read options from CLI.
 	config = Options()
 	config.parseOptions()
@@ -384,7 +385,7 @@ def main() -> Deferred[None]:  # pragma: no cover
 		privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, privkey)
 		certificate = crypto.load_certificate(crypto.FILETYPE_PEM, certData)
 		chain = crypto.load_certificate(crypto.FILETYPE_PEM, chain)
-		contextFactory = ssl.CertificateOptions(
+		sslContext = ssl.CertificateOptions(
 			privateKey=privkey,
 			certificate=certificate,
 			extraCertChain=[chain],
@@ -398,15 +399,15 @@ def main() -> Deferred[None]:  # pragma: no cover
 		state.motd = None
 	# Set up the machinery of the server.
 	factory = RemoteServerFactory(state)
-	wrapped = HAProxyWrappingFactory(factory)
+	wrappedFactory = HAProxyWrappingFactory(factory)
 	looper = LoopingCall(factory.pingConnectedClients)
 	looper.start(PING_INTERVAL)
 	factory.protocol = Handler
 	# Start running the server.
 	if config["no-ssl"]:
-		reactor.listenTCP(int(config["port"]), wrapped, interface=config["network-interface"])
+		reactor.listenTCP(int(config["port"]), wrappedFactory, interface=config["network-interface"])
 	else:
-		reactor.listenSSL(int(config["port"]), factory, contextFactory, interface=config["network-interface"])
+		reactor.listenSSL(int(config["port"]), factory, sslContext, interface=config["network-interface"])
 	reactor.run()
 	return defer.Deferred()
 
