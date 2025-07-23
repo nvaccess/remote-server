@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.8.2-python3.13-bookworm
+FROM ghcr.io/astral-sh/uv:0.8.2-python3.13-alpine
 
 # Increases performance, but slows down start-up time
 ENV UV_COMPILE_BYTECODE=1
