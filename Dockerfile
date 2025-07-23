@@ -1,5 +1,8 @@
 FROM ghcr.io/astral-sh/uv:0.8.2-python3.13-alpine
 
+RUN addgroup -S remotegroup && adduser -S remoteuser -G remotegroup
+USER remoteuser
+
 # Increases performance, but slows down start-up time
 ENV UV_COMPILE_BYTECODE=1
 # Keeps Python from buffering stdout and stderr
