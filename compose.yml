@@ -1,0 +1,5 @@
+services:
+  remote_server:
+    build: .
+    ports:
+      - "6837:6837"
