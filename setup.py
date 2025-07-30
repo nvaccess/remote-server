@@ -1,6 +1,6 @@
 # Copyright 2020 Christopher Toth
 #
-# This file is part of NVDA Remote Access Relay Server.
+# This file is part of the NVDA Remote Access Relay Server.
 #
 # NVDA Remote Access Relay Server is free software: you can redistribute it and/or modify it under the terms
 # of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of
