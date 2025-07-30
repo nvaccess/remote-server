@@ -1,4 +1,4 @@
-# Copyright 2020, 2021, 2023, 2025 NV Access Limited, Christopher Toth, Tyler Spivey
+# Copyright 2020-2025 NV Access Limited, Christopher Toth, Tyler Spivey
 #
 # This file is part of NVDA Remote Access Relay Server.
 #
