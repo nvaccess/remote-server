@@ -1,0 +1,15 @@
+services:
+  remote_server:
+    build: .
+    ports:
+      - "6837:6837"
+    develop:
+      watch:
+        # Restart whenever code changes are detected
+        - action: sync+restart
+          path: .
+          target: /app
+          ignore:
+            - .venv
+        - action: rebuild
+          path: ./uv.lock
