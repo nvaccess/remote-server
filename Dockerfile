@@ -28,7 +28,15 @@ ENV PYTHONUNBUFFERED=1
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
 
+# Create imagetag.txt with build info
+ARG GITHUB_BRANCH
+ARG GITHUB_SHA
+ENV GITHUB_BRANCH=${GITHUB_BRANCH}
+ENV GITHUB_SHA=${GITHUB_SHA}
+
 WORKDIR /app
+
+RUN echo "${GITHUB_BRANCH}-${GITHUB_SHA}" > /app/imagetag.txt
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
