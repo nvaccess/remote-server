@@ -49,4 +49,3 @@ jobs:
           curl -X POST ${{ env.WEBHOOK_URL }} \
             -H "Content-Type: application/json" \
             -d '{"container": "${{ env.CONTAINER_NAME }}", "secret": "${{ secrets.DOCKER_WEBHOOK_SECRET }}"}'
-
