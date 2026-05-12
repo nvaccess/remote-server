@@ -47,4 +47,4 @@ RUN addgroup -S remotegroup && adduser -S remoteuser -G remotegroup
 USER remoteuser
 EXPOSE 6837
 # Run the server
-CMD ["uv", "run", "server.py"]
+CMD ["uv", "run", "server.py", "--network-interface", "0.0.0.0"]
