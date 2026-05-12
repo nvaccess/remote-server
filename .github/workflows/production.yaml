@@ -9,7 +9,7 @@ permissions:
   packages: write
 
 env:
-  CONTAINER_NAME: nvdaremote-production
+  CONTAINER_NAME: remote-server-production
   WEBHOOK_URL: https://webhook-internal.nvaccess.org/hooks/deploy
 
 jobs:
@@ -49,4 +49,3 @@ jobs:
           curl -X POST ${{ env.WEBHOOK_URL }} \
             -H "Content-Type: application/json" \
             -d '{"container": "${{ env.CONTAINER_NAME }}", "secret": "${{ secrets.DOCKER_WEBHOOK_SECRET }}"}'
-
