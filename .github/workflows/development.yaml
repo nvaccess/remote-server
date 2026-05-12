@@ -9,7 +9,7 @@ permissions:
   packages: write
 
 env:
-  CONTAINER_NAME: nvdaremote-staging
+  CONTAINER_NAME: remote-server-staging
   WEBHOOK_URL: https://webhook-internal.nvaccess.org/hooks/deploy
 
 jobs:
